@@ -2,9 +2,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<v8desk.application.Abstractions.IEmpresaAtual, v8desk.api.Tenancy.EmpresaAtualHttp>();
 builder.Services.AddScoped<v8desk.application.Abstractions.IUsuarioAtual, v8desk.api.Tenancy.EmpresaAtualHttp>();
+builder.Services.AddScoped<v8desk.application.Abstractions.IAutorizacaoEmpresa, v8desk.api.Tenancy.AutorizacaoEmpresaHttp>();
 var conexao = builder.Configuration.GetConnectionString("V8Desk");
 if (!string.IsNullOrWhiteSpace(conexao))
+{
+    v8desk.application.DependencyInjection.AdicionarAplicacao(builder.Services);
     v8desk.infrastructure.DependencyInjection.AdicionarInfraestrutura(builder.Services, conexao);
+}
 else if (!builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Configure ConnectionStrings:V8Desk antes de iniciar o servidor.");
 

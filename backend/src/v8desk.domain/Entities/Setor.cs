@@ -77,6 +77,27 @@ public sealed class Setor
         categoria.DefinirPai(novoPai);
     }
 
+    public void RenomearCategoria(Categoria categoria, string nome)
+    {
+        GarantirAtivo();
+        ExigirCategoriaDoSetor(categoria);
+        var validado = Guarda.Texto(nome, "o nome da categoria", 200);
+        if (categoria.Ativa && _categorias.Any(c => c.Id != categoria.Id && c.Ativa &&
+            c.CategoriaPaiId == categoria.CategoriaPaiId && string.Equals(c.Nome, validado, StringComparison.OrdinalIgnoreCase)))
+            throw new RegraNegocioException("Já existe categoria ativa com esse nome no mesmo nível.");
+        categoria.Renomear(validado);
+    }
+
+    public void RenomearFila(Fila fila, string nome)
+    {
+        GarantirAtivo();
+        if (!_filas.Contains(fila)) throw new RegraNegocioException("Escolha uma fila deste setor.");
+        var validado = Guarda.Texto(nome, "o nome da fila", 200);
+        if (fila.Ativa && _filas.Any(f => f.Id != fila.Id && f.Ativa && string.Equals(f.Nome, validado, StringComparison.OrdinalIgnoreCase)))
+            throw new RegraNegocioException("Já existe uma fila ativa com este nome no setor.");
+        fila.Renomear(validado);
+    }
+
     public void ReativarCategoria(Categoria categoria)
     {
         GarantirAtivo();

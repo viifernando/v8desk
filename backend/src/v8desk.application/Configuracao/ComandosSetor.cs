@@ -1,0 +1,33 @@
+using v8desk.domain.Enums;
+using v8desk.domain.ValueObjects;
+
+namespace v8desk.application.Configuracao;
+
+public abstract record ComandoSetor(Guid SetorId);
+public sealed record RenomearSetor(Guid SetorId, string Nome) : ComandoSetor(SetorId);
+public sealed record DesativarSetor(Guid SetorId) : ComandoSetor(SetorId);
+public sealed record CriarFila(Guid SetorId, string Nome) : ComandoSetor(SetorId);
+public sealed record RenomearFila(Guid SetorId, Guid FilaId, string Nome) : ComandoSetor(SetorId);
+public sealed record DesativarFila(Guid SetorId, Guid FilaId) : ComandoSetor(SetorId);
+public sealed record CriarCategoria(Guid SetorId, string Nome, Guid? PaiId = null) : ComandoSetor(SetorId);
+public sealed record RenomearCategoria(Guid SetorId, Guid CategoriaId, string Nome) : ComandoSetor(SetorId);
+public sealed record MoverCategoria(Guid SetorId, Guid CategoriaId, Guid? PaiId) : ComandoSetor(SetorId);
+public sealed record DesativarCategoria(Guid SetorId, Guid CategoriaId) : ComandoSetor(SetorId);
+public sealed record ReativarCategoria(Guid SetorId, Guid CategoriaId) : ComandoSetor(SetorId);
+public sealed record ConfigurarRecebimentoCategoria(Guid SetorId, Guid CategoriaId, bool PermitirComSubcategorias) : ComandoSetor(SetorId);
+public sealed record ConfigurarDestinoCategoria(Guid SetorId, Guid CategoriaId, Guid? FilaId) : ComandoSetor(SetorId);
+public sealed record ConfigurarVisibilidadeCategoria(Guid SetorId, Guid CategoriaId, Visibilidade Visibilidade) : ComandoSetor(SetorId);
+public sealed record PreQualificarCategoria(Guid SetorId, Guid CategoriaId, Guid UsuarioId) : ComandoSetor(SetorId);
+public sealed record RemoverPreQualificacao(Guid SetorId, Guid CategoriaId, Guid UsuarioId) : ComandoSetor(SetorId);
+public sealed record DefinirMetaSla(Guid SetorId, Prioridade Prioridade, TipoSla Tipo, decimal HorasUteis) : ComandoSetor(SetorId);
+public sealed record ConfigurarCicloVidaSetor(Guid SetorId, PoliticaCicloVida? Politica) : ComandoSetor(SetorId);
+public sealed record ConfigurarAcessoRestritoFila(Guid SetorId, Guid FilaId, AcessoRestritoFila Regra) : ComandoSetor(SetorId);
+public sealed record AutorizarRestritos(Guid SetorId, Guid FilaId, Guid UsuarioId) : ComandoSetor(SetorId);
+public sealed record RevogarRestritos(Guid SetorId, Guid FilaId, Guid UsuarioId) : ComandoSetor(SetorId);
+public sealed record AdicionarMembroFila(Guid SetorId, Guid FilaId, Guid VinculoId) : ComandoSetor(SetorId);
+public sealed record RemoverMembroFila(Guid SetorId, Guid FilaId, Guid UsuarioId) : ComandoSetor(SetorId);
+public sealed record CriarVinculoSetor(Guid SetorId, Guid UsuarioId, PapelSetor Papel) : ComandoSetor(SetorId);
+public sealed record ConcederPapelSetor(Guid SetorId, Guid VinculoId, PapelSetor Papel) : ComandoSetor(SetorId);
+public sealed record RevogarPapelSetor(Guid SetorId, Guid VinculoId, PapelSetor Papel) : ComandoSetor(SetorId);
+public sealed record DesativarVinculoSetor(Guid SetorId, Guid VinculoId) : ComandoSetor(SetorId);
+public sealed record ResultadoConfiguracao(Guid SetorId, Guid RegistroId);

@@ -33,6 +33,8 @@ Nomes de fila e categoria usam uma chave de comparação com `ToUpperInvariant`,
 
 ## Configuração e execução futura
 
+Os contratos de filtros e respostas de listagem ficam agora em `v8desk.application.Chamados`, através de `IChamadoConsultas`. `IAcessoRepository` oferece leituras sem tracking para a autorização dos casos de uso. A configuração usa locks transacionais por setor e por usuário para proteger reorganização de hierarquia e limites de vínculos. O processamento de outbox é opt-in: registre `AdicionarProcessamentoOutbox<TPublicador>()` somente quando houver transporte real. Consulte `APLICACAO.md` para os contratos de orquestração e identidade.
+
 Execute os comandos a partir de `backend`. Instale o SDK .NET 10 e restaure a ferramenta local:
 
 ```powershell

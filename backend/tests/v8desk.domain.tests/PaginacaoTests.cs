@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using v8desk.application.Chamados;
 using v8desk.application.Abstractions;
 using v8desk.domain.Enums;
 using v8desk.domain.Exceptions;

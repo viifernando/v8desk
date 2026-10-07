@@ -3,6 +3,17 @@ using v8desk.domain.tests;
 var suite = new RegressoesDominioTests();
 var casos = new (string Nome, Action Executar)[]
 {
+    ("Application: fluxo completo e reabertura", AplicacaoTests.FluxoCompletoEscolheFilaDaCategoriaERetornaResponsavelNaReabertura),
+    ("Application: composição sem banco", AplicacaoTests.ComposicaoResolveCasosDeUsoSemAbrirConexao),
+    ("Application: disponibilidade pessoal", AplicacaoTests.DisponibilidadePessoalNaoExigeAdministracaoENaoAceitaUsuarioInativo),
+    ("Application: administração e calendário histórico", AplicacaoTests.AdministracaoConfiguraEmpresaSemReescreverCalendarioDoChamado),
+    ("Application: limites e nomes", AplicacaoTests.LimiteDeSetoresEUnicidadeDeNomesContinuamNoDominio),
+    ("Application: encerramento automático", AplicacaoTests.EncerramentoAutomaticoNaoRepeteEventos),
+    ("Application: replay e revogação de acesso", AplicacaoTests.ReplayNaoRepeteAcaoERevalidaPermissoes),
+    ("Application: colegas e autoria", AplicacaoTests.ColegaVisualizaMasNaoRespondePeloSolicitanteNemAtende),
+    ("Application: gestor e restritos", AplicacaoTests.GestorNaoRecebeAcessoRestritoAutomaticamente),
+    ("Application: hierarquia, SLA e gestão", AplicacaoTests.ConfiguracaoExigeGestorEUsaDominioParaHierarquiaESla),
+    ("Application: origem e chave idempotente", AplicacaoTests.OrigemNaoPodeSerForjadaNemChaveReutilizadaComOutroComando),
     ("Snapshots JSONB", PersistenciaTests.SnapshotsJsonPreservamCalendarioAnexosECaminho),
     ("Conflitos do banco com mensagens amigáveis", PersistenciaTests.ErrosDoBancoNaoExponhemDetalhes),
     ("Grafo e outbox transacional preparada", PersistenciaTests.GrafoDeChamadoRecebeEmpresaEOutboxSemDependenciaDeBanco),

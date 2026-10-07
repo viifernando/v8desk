@@ -7,38 +7,12 @@ using v8desk.domain.ValueObjects;
 using v8desk.infrastructure.Persistence;
 using v8desk.application.Abstractions;
 using v8desk.domain.Exceptions;
+using v8desk.application.Chamados;
 
 namespace v8desk.infrastructure.Repositories;
 
-public sealed record ChamadoResumo(Guid Id, string Titulo, StatusChamado Status, Prioridade Prioridade,
-    DateTimeOffset AbertoEm, Guid? ResponsavelId);
-public sealed record CursorChamados(DateTimeOffset AbertoEm, Guid Id);
-
-public enum SituacaoListagem { EmAberto, AguardandoValidacao, Encerrados, Todos }
-public enum OrdemChamados { PrazoMaisProximo, MaisRecentes, MaisAntigos, AtualizadosRecentemente, Prioridade }
-public enum FiltroResponsavel { Qualquer, Eu, SemResponsavel, Especifico }
-
-public sealed record FiltroChamados(Guid FilaId)
-{
-    public SituacaoListagem Situacao { get; init; } = SituacaoListagem.EmAberto;
-    public IReadOnlyCollection<Prioridade>? Prioridades { get; init; }
-    public FiltroResponsavel Responsavel { get; init; } = FiltroResponsavel.Qualquer;
-    public Guid? ResponsavelId { get; init; }
-    public Guid? CategoriaId { get; init; }
-    public DateTimeOffset? AbertoDesde { get; init; }
-    public DateTimeOffset? AbertoAte { get; init; }
-    public string? Texto { get; init; }
-    public OrdemChamados Ordem { get; init; } = OrdemChamados.PrazoMaisProximo;
-}
-
-public sealed record ChamadoLinha(Guid Id, long Numero, string Titulo, StatusChamado Status, Prioridade Prioridade,
-    Visibilidade Visibilidade, DateTimeOffset AbertoEm, DateTimeOffset AtualizadoEm, DateTimeOffset? ProximoVencimentoEm,
-    string Solicitante, CaminhoCategoria Categoria, ContextoAtendimento Contexto);
-
-public sealed record PaginaChamados(IReadOnlyList<ChamadoLinha> Itens, string? ProximoCursor, int Total, bool TotalExcedeLimite);
-
 // Permissões verificadas contra vínculos e membros persistidos, dentro do mesmo snapshot da leitura.
-public sealed class ChamadoConsultas(V8DeskDbContext db, IUsuarioAtual identidade)
+public sealed class ChamadoConsultas(V8DeskDbContext db, IUsuarioAtual identidade) : IChamadoConsultas
 {
     public const int LimiteContagem = 10_000;
 

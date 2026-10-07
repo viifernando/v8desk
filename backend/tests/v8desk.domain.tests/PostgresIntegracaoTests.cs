@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using v8desk.application.Abstractions;
+using v8desk.application.Chamados;
+using v8desk.application.Configuracao;
 using v8desk.domain.Entities;
 using v8desk.domain.Enums;
 using v8desk.domain.Exceptions;
@@ -29,6 +31,8 @@ public static class PostgresIntegracaoTests
         builder.SearchPath = schema;
         Console.WriteLine($"Schema de integração criado: {schema}. Preservado para inspeção.");
         var empresa = new Empresa("Integração", new CalendarioEmpresa("UTC"));
+        foreach (var dia in Enum.GetValues<DayOfWeek>())
+            empresa.Calendario.DefinirExpediente(dia, [new(new(8, 0), new(17, 0))]);
         var setor = empresa.CriarSetor("TI");
         var usuario = new Usuario(empresa.Id, "Atendente");
         var colega = new Usuario(empresa.Id, "Colega");
@@ -142,7 +146,43 @@ public static class PostgresIntegracaoTests
         }
         await using (var db = Contexto())
             Assert.Equal(1, await new OutboxProcessador(db, publicador, NullLogger<OutboxProcessador>.Instance).ProcessarAsync(1));
-        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência e outbox.");
+        ChamadoAplicacao Aplicacao(V8DeskDbContext db, Guid autor) => new(new ChamadoRepository(db), new ConfiguracaoRepository(db),
+            new AcessoRepository(db), new ExecutorComandoIdempotente(db, new Identidade(autor)), db,
+            new EmpresaTeste(empresa.Id), new Identidade(autor), TimeProvider.System);
+        Guid chamadoAplicacao;
+        await using (var db = Contexto())
+        {
+            var resultado = await Aplicacao(db, colega.Id).AbrirAsync(new(setor.Id, setor.Id, subcategoria.Id,
+                "Via Application", "Pedido", Prioridade.Media, Visibilidade.CompartilhadoComSetor), "app-abrir");
+            Assert.True(resultado.Numero > 0);
+            chamadoAplicacao = resultado.Id;
+        }
+        await using (var db = Contexto())
+        {
+            var resultado = await Aplicacao(db, colega.Id).AbrirAsync(new(setor.Id, setor.Id, subcategoria.Id,
+                "Via Application", "Pedido", Prioridade.Media, Visibilidade.CompartilhadoComSetor), "app-abrir");
+            Assert.Equal(chamadoAplicacao, resultado.Id);
+        }
+        await using (var db = Contexto())
+            Assert.Equal(StatusChamado.Aceito, (await Aplicacao(db, usuario.Id).ExecutarAsync(new AssumirChamado(chamadoAplicacao), "app-assumir")).Status);
+        await using (var db = Contexto())
+            Assert.Equal(StatusChamado.AguardandoInformacao, (await Aplicacao(db, usuario.Id).ExecutarAsync(new SolicitarInformacao(chamadoAplicacao, "Detalhes?"), "app-perguntar")).Status);
+        await using (var db = Contexto())
+            Assert.Equal(StatusChamado.Aceito, (await Aplicacao(db, colega.Id).ExecutarAsync(new ResponderSolicitante(chamadoAplicacao, "Mais detalhes"), "app-responder")).Status);
+        await using (var db = Contexto())
+        {
+            var existente = await db.Vinculos.AsTracking().SingleAsync(x => x.Id == vinculo.Id);
+            existente.ConcederPapel(PapelSetor.Gestor);
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Contexto())
+        {
+            var configuracao = new ConfiguracaoSetorAplicacao(new ConfiguracaoRepository(db), new AcessoRepository(db),
+                new ExecutorComandoIdempotente(db, new Identidade(usuario.Id)), db, new EmpresaTeste(empresa.Id), new Identidade(usuario.Id), TimeProvider.System);
+            var resultado = await configuracao.ExecutarAsync(new CriarFila(setor.Id, "Via Application"), "app-fila");
+            Assert.True(await db.Filas.AnyAsync(f => f.Id == resultado.RegistroId));
+        }
+        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência, outbox e Application.");
     }
 
     private static async Task ExigirFalhaAsync<T>(Func<Task> executar) where T : Exception
