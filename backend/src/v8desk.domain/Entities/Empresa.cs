@@ -2,7 +2,11 @@ namespace v8desk.domain.Entities;
 
 public sealed class Empresa
 {
-    public Guid Id { get; }
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private Empresa() { }
+#pragma warning restore CS8618
+
+    public Guid Id { get; private set; }
     public string Nome { get; private set; }
     public CalendarioEmpresa Calendario { get; private set; }
     public PoliticaCicloVida PadraoCicloVida { get; private set; } = PoliticaCicloVida.Padrao;
@@ -12,13 +16,13 @@ public sealed class Empresa
     {
         ArgumentNullException.ThrowIfNull(calendario);
         Id = Guid.CreateVersion7();
-        Nome = Guarda.Texto(nome, "o nome da empresa");
+        Nome = Guarda.Texto(nome, "o nome da empresa", 200);
         Calendario = calendario;
     }
 
     public void Renomear(string nome)
     {
-        Nome = Guarda.Texto(nome, "o nome da empresa");
+        Nome = Guarda.Texto(nome, "o nome da empresa", 200);
     }
 
     public Setor CriarSetor(string nome) => new(Id, nome);

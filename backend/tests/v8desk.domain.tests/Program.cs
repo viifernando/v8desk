@@ -3,6 +3,17 @@ using v8desk.domain.tests;
 var suite = new RegressoesDominioTests();
 var casos = new (string Nome, Action Executar)[]
 {
+    ("Snapshots JSONB", PersistenciaTests.SnapshotsJsonPreservamCalendarioAnexosECaminho),
+    ("Grafo e outbox transacional preparada", PersistenciaTests.GrafoDeChamadoRecebeEmpresaEOutboxSemDependenciaDeBanco),
+    ("Modelo EF/PostgreSQL", PersistenciaTests.ModeloPostgresGeraSchemaComIndicesConcorrenciaEIsolamento),
+    ("Filtro de empresa no SQL", PersistenciaTests.FiltroDeEmpresaEstaNoSqlETrocaPorContexto),
+    ("Gravação entre empresas bloqueada", PersistenciaTests.GravacaoDeOutraEmpresaFalhaAntesDeAcessarBanco),
+    ("Entradas inválidas e mensagens", suite.EntradasInvalidasTemMensagensClarasECodigos),
+    ("Cronologia sem mutação parcial", suite.AcaoRetroativaNaoDeixaMutacaoParcial),
+    ("Abertura e limites", suite.AberturaRejeitaTextosExcessivosEFilaDeOutroSetor),
+    ("Visibilidade restrita na abertura", suite.CategoriaRestritaNaoPodeSerAbertaCompartilhada),
+    ("Isolamento entre empresas", suite.UsuariosDeOutraEmpresaNaoPodemIntegrarFilaOuPreQualificacao),
+    ("Erros HTTP e proteção dos detalhes", ApiErrorsTests.ErrosConhecidosSaoAmigaveisEFalhasInternasNaoVazamDetalhes),
     ("Hierarquia sem ciclos e entre setores", suite.HierarquiaRejeitaCiclosEOutrosSetoresSemModificarArvore),
     ("Herança de fila", suite.HerancaDeFilaPermiteSobrescreverInclusiveComFilaGeral),
     ("Herança de pré-qualificação", suite.PreQualificacaoHerdaListaMaisProximaSemRestringirAcesso),

@@ -12,12 +12,12 @@ public sealed record PoliticaCicloVida
     {
         ArgumentNullException.ThrowIfNull(prazoValidacao);
         if (prazoReabertura <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(prazoReabertura));
+            throw new ValidacaoDominioException("prazo_invalido", "prazoReabertura", "O prazo para reabrir deve ser maior que zero.");
         if (diasUteisAntecedenciaLembrete < 0)
-            throw new ArgumentOutOfRangeException(nameof(diasUteisAntecedenciaLembrete));
+            throw new ValidacaoDominioException("antecedencia_invalida", "diasUteisAntecedenciaLembrete", "A antecedência do lembrete não pode ser negativa. Use zero para desativá-lo.");
 
         if (prazoAvaliacao <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(prazoAvaliacao));
+            throw new ValidacaoDominioException("prazo_invalido", "prazoAvaliacao", "O prazo para avaliar deve ser maior que zero.");
         PrazoAvaliacao = prazoAvaliacao;
         PrazoValidacao = prazoValidacao;
         PrazoReabertura = prazoReabertura;

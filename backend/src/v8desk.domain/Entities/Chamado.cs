@@ -4,6 +4,10 @@ namespace v8desk.domain.Entities;
 
 public sealed class Chamado
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private Chamado() { }
+#pragma warning restore CS8618
+
     private static readonly StatusChamado[] StatusAtivos =
     [
         StatusChamado.AguardandoTriagem,
@@ -16,12 +20,12 @@ public sealed class Chamado
     private readonly List<Mensagem> _mensagens = new();
     private readonly List<CicloAtendimento> _ciclos = new();
 
-    public Guid Id { get; }
-    public Guid EmpresaId { get; }
-    public Guid SolicitanteId { get; }
-    public ReferenciaHistorica SetorOrigemNaAbertura { get; }
+    public Guid Id { get; private set; }
+    public Guid EmpresaId { get; private set; }
+    public Guid SolicitanteId { get; private set; }
+    public ReferenciaHistorica SetorOrigemNaAbertura { get; private set; }
     public string Titulo { get; private set; }
-    public string DescricaoOriginal { get; }
+    public string DescricaoOriginal { get; private set; }
     public StatusChamado Status { get; private set; }
     public Prioridade Prioridade { get; private set; }
     public Visibilidade Visibilidade { get; private set; }
@@ -33,7 +37,8 @@ public sealed class Chamado
     public Guid? ResponsavelId => ContextoAtual.Responsavel?.Id;
     public MetasSlaAplicadas MetasSla { get; private set; }
     public PoliticaCicloVida CicloVidaAplicado { get; private set; }
-    public DateTimeOffset AbertoEm { get; }
+    public DateTimeOffset AbertoEm { get; private set; }
+    public DateTimeOffset AtualizadoEm { get; private set; }
     public DateTimeOffset? LimiteValidacao { get; private set; }
     public DateTimeOffset? LembreteValidacaoEm { get; private set; }
     public DateTimeOffset? LimiteReabertura { get; private set; }
@@ -62,6 +67,7 @@ public sealed class Chamado
         MetasSla = metasSla;
         CicloVidaAplicado = cicloVida;
         AbertoEm = abertoEm;
+        AtualizadoEm = abertoEm;
     }
 
     public static Chamado Abrir(DadosAbertura dados, ContextoOperacao contexto,
@@ -76,6 +82,10 @@ public sealed class Chamado
 
         var empresaId = Guarda.Identificador(dados.EmpresaId, "a empresa");
         var solicitanteId = Guarda.Identificador(dados.SolicitanteId, "o solicitante");
+        if (dados.Fila.EmpresaId != empresaId || dados.Categoria.EmpresaId != empresaId)
+            throw new RegraNegocioException("Escolha uma fila e uma categoria da empresa do chamado.");
+        if (!dados.Fila.Ativa || dados.Fila.SetorId != configuracao.Setor.Id)
+            throw new RegraNegocioException("Escolha uma fila ativa do setor responsável.");
         dados.Categoria.ExigirRecebimento();
         if (dados.Categoria.SetorId != configuracao.Setor.Id)
             throw new RegraNegocioException("A categoria deve pertencer ao setor de atendimento.");
@@ -84,16 +94,20 @@ public sealed class Chamado
         if (contexto.AutorId != solicitanteId)
             throw new AcessoNegadoException("Somente o próprio solicitante pode abrir o chamado.");
 
-        var titulo = Guarda.Texto(dados.Titulo, "o título");
-        var descricao = Guarda.Texto(dados.Descricao, "a descrição");
+        var titulo = Guarda.Texto(dados.Titulo, "o título", 200);
+        var descricao = Guarda.Texto(dados.Descricao, "a descrição", 20000);
         var prioridade = Guarda.Definido(dados.Prioridade, "a prioridade");
         var visibilidade = Guarda.Definido(dados.Visibilidade, "a visibilidade");
+        if (dados.Categoria.VisibilidadePadrao == Visibilidade.AcessoRestrito)
+            visibilidade = Visibilidade.AcessoRestrito;
+        if (visibilidade == Visibilidade.AcessoRestrito && !dados.Fila.TemAtendenteAutorizadoParaRestritos())
+            throw new RegraNegocioException("Esta fila ainda não tem atendentes autorizados para acesso restrito. Peça ao gestor para configurar o acesso.");
         var metas = MetasSlaAplicadas.De(configuracao.PoliticaSla, configuracao.Setor.Id,
             prioridade, configuracao.Calendario);
 
         var chamado = new Chamado(empresaId, solicitanteId, dados.SetorOrigem, titulo, descricao,
             prioridade, visibilidade, categoriaHistorica,
-            new ContextoAtendimento(configuracao.Setor, dados.Fila, null),
+            new ContextoAtendimento(configuracao.Setor, new(dados.Fila.Id, dados.Fila.Nome), null),
             metas, configuracao.CicloVida, contexto.Agora);
 
         var ciclo = new CicloAtendimento(1, contexto.Agora);
@@ -127,6 +141,7 @@ public sealed class Chamado
         ArgumentNullException.ThrowIfNull(atendente);
         ArgumentNullException.ThrowIfNull(fila);
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         if (atendente.Id != contexto.AutorId)
             throw new AcessoNegadoException("O chamado só pode ser assumido pelo próprio atendente.");
 
@@ -196,7 +211,7 @@ public sealed class Chamado
         ExigirAtendimento(contexto, acesso);
         ExigirStatus(StatusChamado.AguardandoTriagem, StatusChamado.Aceito,
             StatusChamado.EmAtendimento);
-        var texto = Guarda.Texto(pergunta, "a pergunta");
+        var texto = Guarda.Texto(pergunta, "a pergunta", 20000);
 
         var anterior = Status;
         var mensagem = RegistrarMensagem(contexto.AutorId, TipoMensagem.Publica, texto, contexto.Agora);
@@ -210,10 +225,11 @@ public sealed class Chamado
     public void ResponderSolicitante(string texto, ContextoOperacao contexto)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.AguardandoTriagem, StatusChamado.Aceito,
             StatusChamado.EmAtendimento, StatusChamado.AguardandoInformacao, StatusChamado.Resolvido);
-        var conteudo = Guarda.Texto(texto, "o texto");
+        var conteudo = Guarda.Texto(texto, "o texto", 20000);
 
         var anterior = Status;
         var mensagem = RegistrarMensagem(contexto.AutorId, TipoMensagem.Publica, conteudo, contexto.Agora);
@@ -236,7 +252,7 @@ public sealed class Chamado
         ExigirAtendimento(contexto, acesso);
         ExigirStatus(StatusChamado.AguardandoTriagem, StatusChamado.Aceito,
             StatusChamado.EmAtendimento, StatusChamado.AguardandoInformacao, StatusChamado.Resolvido);
-        var conteudo = Guarda.Texto(texto, "o texto");
+        var conteudo = Guarda.Texto(texto, "o texto", 20000);
 
         var mensagem = RegistrarMensagem(contexto.AutorId, TipoMensagem.Publica, conteudo, contexto.Agora);
         CicloAtual.FinalizarEsperasDeResposta(contexto.Agora, MotivoFinalizacaoSla.Respondido);
@@ -248,7 +264,7 @@ public sealed class Chamado
         IAutorizacaoChamado acesso)
     {
         ExigirAtendimento(contexto, acesso);
-        var conteudo = Guarda.Texto(texto, "o texto");
+        var conteudo = Guarda.Texto(texto, "o texto", 20000);
 
         var mensagem = RegistrarMensagem(contexto.AutorId, TipoMensagem.NotaInterna, conteudo, contexto.Agora);
         RegistrarEvento(TipoEventoChamado.NotaInternaAdicionada, contexto.AutorId, contexto.Agora, null,
@@ -305,6 +321,7 @@ public sealed class Chamado
         ArgumentNullException.ThrowIfNull(categoriaDestino);
         ArgumentNullException.ThrowIfNull(configuracao);
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ArgumentNullException.ThrowIfNull(acesso);
         acesso.ExigirTransferencia(this, contexto.AutorId, destino);
         ExigirChamadoAtivo();
@@ -312,6 +329,8 @@ public sealed class Chamado
 
         if (!destino.Ativa)
             throw new RegraNegocioException("A fila de destino está inativa.");
+        if (destino.EmpresaId != EmpresaId || categoriaDestino.EmpresaId != EmpresaId)
+            throw new RegraNegocioException("Escolha uma fila e uma categoria da mesma empresa do chamado.");
         if (destino.Id == FilaAtualId)
             throw new RegraNegocioException("O chamado já está na fila de destino.");
         if (configuracao.Setor.Id != destino.SetorId)
@@ -400,7 +419,7 @@ public sealed class Chamado
         ExigirAtendimento(contexto, acesso);
         ArgumentNullException.ThrowIfNull(configuracao);
         ExigirChamadoAtivo();
-        var descricao = Guarda.Texto(descricaoSolucao, "a descrição da solução");
+        var descricao = Guarda.Texto(descricaoSolucao, "a descrição da solução", 20000);
         ExigirConfiguracaoDoSetorAtual(configuracao);
 
         var cicloVida = configuracao.CicloVida;
@@ -428,6 +447,7 @@ public sealed class Chamado
     public void ConfirmarSolucao(ContextoOperacao contexto)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.Resolvido);
 
@@ -439,6 +459,7 @@ public sealed class Chamado
         ConfiguracaoAplicada configuracao)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ArgumentNullException.ThrowIfNull(configuracao);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.Resolvido);
@@ -464,6 +485,7 @@ public sealed class Chamado
 
     public void EncerrarPorPrazo(DateTimeOffset agora)
     {
+        Guarda.Instante(agora, "a data da ação");
         if (Status != StatusChamado.Resolvido || LimiteValidacao is not { } limite || agora < limite)
             return;
 
@@ -476,6 +498,7 @@ public sealed class Chamado
         ArgumentNullException.ThrowIfNull(filaAtual);
         ArgumentNullException.ThrowIfNull(configuracao);
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.Encerrado);
         if (LimiteReabertura is not { } limite || contexto.Agora > limite)
@@ -515,6 +538,7 @@ public sealed class Chamado
     public void Cancelar(string motivo, ContextoOperacao contexto, IAutorizacaoChamado acesso)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ArgumentNullException.ThrowIfNull(acesso);
         if (contexto.AutorId != SolicitanteId)
             acesso.ExigirCancelamento(this, contexto.AutorId);
@@ -534,6 +558,7 @@ public sealed class Chamado
     public void Avaliar(int nota, string? comentario, ContextoOperacao contexto)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.Encerrado);
         if (CicloAtual.LimiteAvaliacao is not { } limite || contexto.Agora > limite)
@@ -549,6 +574,7 @@ public sealed class Chamado
     {
         ArgumentNullException.ThrowIfNull(anexo);
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         if (Status is StatusChamado.Encerrado or StatusChamado.Cancelado)
             throw new RegraNegocioException("Chamado finalizado não aceita novos anexos.");
 
@@ -565,6 +591,7 @@ public sealed class Chamado
         ContextoOperacao contexto)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         var mensagem = ObterMensagem(mensagemId);
         var textoAnterior = mensagem.TextoAtual;
 
@@ -620,8 +647,9 @@ public sealed class Chamado
         IReadOnlyDictionary<string, string?> depois)
     {
         _eventos.Add(new EventoChamado(Guid.CreateVersion7(), Id, agora, autorId, tipo, motivo,
-            antes, depois));
+            antes, depois, Versao + 1));
         Versao++;
+        AtualizadoEm = agora;
     }
 
     private bool PodeAtenderNaFila(Guid usuarioId, Fila fila) =>
@@ -641,6 +669,7 @@ public sealed class Chamado
     private void ExigirAtendimento(ContextoOperacao contexto, IAutorizacaoChamado acesso)
     {
         ArgumentNullException.ThrowIfNull(contexto);
+        ExigirOrdemCronologica(contexto.Agora);
         ArgumentNullException.ThrowIfNull(acesso);
         acesso.ExigirAtendimento(this, contexto.AutorId);
     }
@@ -668,8 +697,27 @@ public sealed class Chamado
     private void ExigirStatus(params StatusChamado[] permitidos)
     {
         if (!permitidos.Contains(Status))
-            throw new RegraNegocioException($"Operação não permitida com o chamado em {Status}.");
+            throw new RegraNegocioException($"Esta ação não está disponível enquanto o chamado está {NomeStatus(Status)}.");
     }
+
+    private void ExigirOrdemCronologica(DateTimeOffset agora)
+    {
+        if (agora < AtualizadoEm)
+            throw new ValidacaoDominioException("data_fora_de_ordem", "dataAcao",
+                "A data da ação não pode ser anterior à última atualização do chamado.");
+    }
+
+    private static string NomeStatus(StatusChamado status) => status switch
+    {
+        StatusChamado.AguardandoTriagem => "aguardando triagem",
+        StatusChamado.Aceito => "aceito",
+        StatusChamado.EmAtendimento => "em atendimento",
+        StatusChamado.AguardandoInformacao => "aguardando informações",
+        StatusChamado.Resolvido => "resolvido",
+        StatusChamado.Encerrado => "encerrado",
+        StatusChamado.Cancelado => "cancelado",
+        _ => "em uma etapa incompatível"
+    };
 
     private static readonly IReadOnlyDictionary<string, string?> SemDados =
         new Dictionary<string, string?>();

@@ -2,13 +2,17 @@ namespace v8desk.domain.Entities;
 
 public sealed class CicloAtendimento
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private CicloAtendimento() { }
+#pragma warning restore CS8618
+
     private readonly List<PeriodoEtapa> _periodos = new();
     private readonly List<CicloSla> _ciclosSla = new();
     private readonly List<SolucaoRejeitada> _solucoesRejeitadas = new();
 
-    public Guid Id { get; }
-    public int Numero { get; }
-    public DateTimeOffset IniciadoEm { get; }
+    public Guid Id { get; private set; }
+    public int Numero { get; private set; }
+    public DateTimeOffset IniciadoEm { get; private set; }
     public DateTimeOffset? EncerradoEm { get; private set; }
     public MotivoEncerramento? MotivoDeEncerramento { get; private set; }
     public Solucao? Solucao { get; private set; }

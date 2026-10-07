@@ -2,14 +2,18 @@ namespace v8desk.domain.Entities;
 
 public sealed class Setor
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private Setor() { }
+#pragma warning restore CS8618
+
     private readonly List<Fila> _filas = new();
     private readonly List<Categoria> _categorias = new();
 
-    public Guid Id { get; }
-    public Guid EmpresaId { get; }
+    public Guid Id { get; private set; }
+    public Guid EmpresaId { get; private set; }
     public string Nome { get; private set; }
     public bool Ativo { get; private set; }
-    public Guid FilaGeralId { get; }
+    public Guid FilaGeralId { get; private set; }
     public PoliticaSla Sla { get; private set; }
     public PoliticaCicloVida? CicloVidaEspecifico { get; private set; }
     public IReadOnlyList<Fila> Filas => _filas.AsReadOnly();
@@ -20,29 +24,29 @@ public sealed class Setor
     {
         Id = Guid.CreateVersion7();
         EmpresaId = Guarda.Identificador(empresaId, "a empresa do setor");
-        Nome = Guarda.Texto(nome, "o nome do setor");
+        Nome = Guarda.Texto(nome, "o nome do setor", 200);
         Ativo = true;
-        Sla = new PoliticaSla();
+        Sla = new PoliticaSla(EmpresaId);
 
-        var filaGeral = new Fila(Id, "Geral", geral: true);
+        var filaGeral = new Fila(EmpresaId, Id, "Geral", geral: true);
         _filas.Add(filaGeral);
         FilaGeralId = filaGeral.Id;
     }
 
     public void Renomear(string nome)
     {
-        Nome = Guarda.Texto(nome, "o nome do setor");
+        Nome = Guarda.Texto(nome, "o nome do setor", 200);
     }
 
     public Fila CriarFila(string nome)
     {
         GarantirAtivo();
-        var nomeValidado = Guarda.Texto(nome, "o nome da fila");
+        var nomeValidado = Guarda.Texto(nome, "o nome da fila", 200);
 
         if (_filas.Exists(f => f.Ativa && string.Equals(f.Nome, nomeValidado, StringComparison.OrdinalIgnoreCase)))
             throw new RegraNegocioException("Já existe uma fila ativa com este nome no setor.");
 
-        var fila = new Fila(Id, nomeValidado, geral: false);
+        var fila = new Fila(EmpresaId, Id, nomeValidado, geral: false);
         _filas.Add(fila);
         return fila;
     }
@@ -51,12 +55,12 @@ public sealed class Setor
     {
         GarantirAtivo();
         if (pai is not null) ExigirCategoriaDoSetor(pai);
-        var nomeValidado = Guarda.Texto(nome, "o nome da categoria");
+        var nomeValidado = Guarda.Texto(nome, "o nome da categoria", 200);
 
         if (_categorias.Exists(c => c.Ativa && c.CategoriaPaiId == pai?.Id && string.Equals(c.Nome, nomeValidado, StringComparison.OrdinalIgnoreCase)))
             throw new RegraNegocioException("Já existe uma categoria ativa com este nome no setor.");
 
-        var categoria = new Categoria(Id, nomeValidado);
+        var categoria = new Categoria(EmpresaId, Id, nomeValidado);
         categoria.DefinirPai(pai);
         _categorias.Add(categoria);
         return categoria;
@@ -90,6 +94,8 @@ public sealed class Setor
     public void ConfigurarSla(PoliticaSla politica)
     {
         ArgumentNullException.ThrowIfNull(politica);
+        if (politica.EmpresaId != EmpresaId)
+            throw new RegraNegocioException("Escolha uma política de atendimento da mesma empresa do setor.");
         politica.ValidarCobertura();
         Sla = politica;
     }

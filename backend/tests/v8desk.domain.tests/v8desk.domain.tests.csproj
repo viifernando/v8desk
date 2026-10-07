@@ -7,5 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/v8desk.domain/v8desk.domain.csproj" />
+    <ProjectReference Include="..\..\src\v8desk.api\v8desk.api.csproj" />
+    <ProjectReference Include="..\..\src\v8desk.infrastructure\v8desk.infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -2,33 +2,42 @@ namespace v8desk.domain.Entities;
 
 public sealed class Fila
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private Fila() { }
+#pragma warning restore CS8618
+
     private readonly List<MembroFila> _membros = new();
 
-    public Guid Id { get; }
-    public Guid SetorId { get; }
+    public Guid Id { get; private set; }
+    public Guid SetorId { get; private set; }
+    public Guid EmpresaId { get; private set; }
     public string Nome { get; private set; }
-    public bool Geral { get; }
+    public bool Geral { get; private set; }
     public bool Ativa { get; private set; }
     public AcessoRestritoFila RegraAcessoRestrito { get; private set; } = AcessoRestritoFila.IntegrantesSelecionados;
     public IReadOnlyList<MembroFila> Membros => _membros.AsReadOnly();
 
-    internal Fila(Guid setorId, string nome, bool geral)
+    internal Fila(Guid empresaId, Guid setorId, string nome, bool geral)
     {
         Id = Guid.CreateVersion7();
         SetorId = Guarda.Identificador(setorId, "o setor da fila");
-        Nome = Guarda.Texto(nome, "o nome da fila");
+        EmpresaId = Guarda.Identificador(empresaId, "a empresa");
+        Nome = Guarda.Texto(nome, "o nome da fila", 200);
         Geral = geral;
         Ativa = true;
     }
 
     public void Renomear(string nome)
     {
-        Nome = Guarda.Texto(nome, "o nome da fila");
+        Nome = Guarda.Texto(nome, "o nome da fila", 200);
     }
 
     public void AdicionarMembro(VinculoSetor vinculo)
     {
         ArgumentNullException.ThrowIfNull(vinculo);
+
+        if (vinculo.Usuario.EmpresaId != EmpresaId)
+            throw new RegraNegocioException("Escolha um atendente da mesma empresa da fila.");
 
         if (!Ativa)
             throw new RegraNegocioException("Não é possível adicionar membros a uma fila inativa.");

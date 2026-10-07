@@ -8,7 +8,7 @@ public sealed record IntervaloExpediente
     public IntervaloExpediente(TimeOnly inicio, TimeOnly fim)
     {
         if (fim <= inicio)
-            throw new RegraNegocioException("O fim do intervalo de expediente deve ser posterior ao início.");
+            throw new ValidacaoDominioException("expediente_invalido", "expediente", "O horário de término deve ser depois do horário de início.");
 
         Inicio = inicio;
         Fim = fim;
@@ -23,14 +23,14 @@ public sealed record IntervaloExpediente
         var lista = intervalos.ToList();
 
         if (lista.Any(intervalo => intervalo is null))
-            throw new ArgumentException("Intervalos de expediente não podem ser nulos.", nameof(intervalos));
+            throw new ValidacaoDominioException("expediente_invalido", "expediente", "Preencha todos os intervalos de expediente.");
 
         var ordenados = lista.OrderBy(intervalo => intervalo.Inicio).ToList();
 
         for (var i = 1; i < ordenados.Count; i++)
         {
             if (ordenados[i].Inicio < ordenados[i - 1].Fim)
-                throw new RegraNegocioException("Intervalos de expediente não podem se sobrepor.");
+                throw new ValidacaoDominioException("expediente_sobreposto", "expediente", "Os intervalos de expediente não podem ter horários sobrepostos.");
         }
 
         return ordenados.AsReadOnly();

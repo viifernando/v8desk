@@ -6,11 +6,12 @@ public sealed record HorasUteis
 
     public HorasUteis(decimal valor)
     {
-        if (valor <= 0)
-            throw new ArgumentOutOfRangeException(nameof(valor));
+        if (valor < 1m / TimeSpan.TicksPerHour || valor > (decimal)TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerHour)
+            throw new ValidacaoDominioException("prazo_invalido", "horasUteis",
+                "Informe um prazo em horas úteis maior que zero e dentro do intervalo permitido.");
 
         Valor = valor;
     }
 
-    public TimeSpan ParaTimeSpan() => TimeSpan.FromHours((double)Valor);
+    public TimeSpan ParaTimeSpan() => TimeSpan.FromTicks((long)(Valor * TimeSpan.TicksPerHour));
 }

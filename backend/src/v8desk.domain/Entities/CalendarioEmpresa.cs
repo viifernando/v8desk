@@ -19,6 +19,18 @@ public sealed class CalendarioEmpresa
         return copia;
     }
 
+    internal bool Historico => _snapshot;
+
+    internal static CalendarioEmpresa Restaurar(Guid id, long versao, string fuso,
+        IReadOnlyDictionary<DayOfWeek, IReadOnlyList<IntervaloExpediente>> expediente,
+        IReadOnlyCollection<ExcecaoCalendario> excecoes, bool historico)
+    {
+        var calendario = new CalendarioEmpresa(fuso) { Id = id, Versao = versao, _snapshot = historico };
+        foreach (var item in expediente) calendario._expediente.Add(item.Key, IntervaloExpediente.Normalizar(item.Value));
+        foreach (var item in excecoes) calendario._excecoes.Add(item.Data, item);
+        return calendario;
+    }
+
     private void ExigirEditavel()
     {
         if (_snapshot) throw new RegraNegocioException("Calendário histórico não pode ser alterado.");
@@ -150,7 +162,7 @@ public sealed class CalendarioEmpresa
     public DateTimeOffset SubtrairDiasUteis(DateTimeOffset limite, int dias)
     {
         if (dias < 0)
-            throw new ArgumentOutOfRangeException(nameof(dias));
+            throw new ValidacaoDominioException("antecedencia_invalida", "dias", "A quantidade de dias úteis não pode ser negativa.");
 
         if (dias == 0)
             return limite;

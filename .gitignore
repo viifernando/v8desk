@@ -89,6 +89,7 @@ artifacts/
 .artifacts/
 
 # ASP.NET Scaffolding
+.env
 ScaffoldingReadMe.txt
 
 # StyleCop

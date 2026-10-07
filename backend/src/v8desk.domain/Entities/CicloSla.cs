@@ -2,19 +2,23 @@ namespace v8desk.domain.Entities;
 
 public sealed class CicloSla
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private CicloSla() { }
+#pragma warning restore CS8618
+
     private readonly List<PausaSla> _pausas = new();
     private readonly List<RevisaoMetaSla> _revisoesMeta = new();
 
-    public Guid Id { get; } = Guid.CreateVersion7();
-    public TipoSla Tipo { get; }
-    public Guid SetorId { get; }
-    public DateTimeOffset IniciadoEm { get; }
+    public Guid Id { get; private set; } = Guid.CreateVersion7();
+    public TipoSla Tipo { get; private set; }
+    public Guid SetorId { get; private set; }
+    public DateTimeOffset IniciadoEm { get; private set; }
     public DateTimeOffset? FinalizadoEm { get; private set; }
     public MotivoFinalizacaoSla? MotivoFinalizacao { get; private set; }
     public HorasUteis MetaAplicada { get; private set; }
-    public long VersaoPoliticaAplicada { get; }
+    public long VersaoPoliticaAplicada { get; private set; }
     public long VersaoCalendarioAplicada => CalendarioAplicado.Versao;
-    public CalendarioEmpresa CalendarioAplicado { get; }
+    public CalendarioEmpresa CalendarioAplicado { get; private set; }
     public IReadOnlyList<PausaSla> Pausas => _pausas.AsReadOnly();
     public IReadOnlyList<RevisaoMetaSla> RevisoesMeta => _revisoesMeta.AsReadOnly();
     public bool Ativo => FinalizadoEm is null;

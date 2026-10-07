@@ -2,7 +2,8 @@ namespace v8desk.domain.Entities;
 
 public sealed record Anexo
 {
-    public Guid Id { get; }
+    public Guid Id { get; private init; }
+    internal Anexo RestaurarIdentificador(Guid id) => this with { Id = id };
     public string NomeOriginal { get; }
     public string TipoConteudo { get; }
     public long TamanhoBytes { get; }

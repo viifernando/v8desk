@@ -9,11 +9,12 @@ public sealed class Avaliacao
 
     public Avaliacao(int nota, string? comentario, Guid solicitanteId, DateTimeOffset criadaEm)
     {
-        if (nota is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(nota));
+        if (nota is < 1 or > 5)
+            throw new ValidacaoDominioException("nota_invalida", "nota", "Escolha uma nota de 1 a 5.");
 
         Nota = nota;
-        Comentario = string.IsNullOrWhiteSpace(comentario) ? null : comentario.Trim();
-        SolicitanteId = solicitanteId;
-        CriadaEm = criadaEm;
+        Comentario = string.IsNullOrWhiteSpace(comentario) ? null : Guarda.Texto(comentario, "o comentário");
+        SolicitanteId = Guarda.Identificador(solicitanteId, "o solicitante");
+        CriadaEm = Guarda.Instante(criadaEm, "a data da avaliação");
     }
 }

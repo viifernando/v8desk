@@ -2,6 +2,10 @@ namespace v8desk.domain.Entities;
 
 public sealed class Categoria
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private Categoria() { }
+#pragma warning restore CS8618
+
     private readonly List<PreQualificacao> _preQualificacoes = new();
     private readonly List<Categoria> _filhas = new();
     public Categoria? Pai { get; private set; }
@@ -44,25 +48,27 @@ public sealed class Categoria
     public IReadOnlyList<PreQualificacao> ObterPreQualificacoesEfetivas() =>
         _preQualificacoes.Count > 0 ? PreQualificacoes : Pai?.ObterPreQualificacoesEfetivas() ?? Array.Empty<PreQualificacao>();
 
-    public Guid Id { get; }
-    public Guid SetorId { get; }
+    public Guid Id { get; private set; }
+    public Guid SetorId { get; private set; }
+    public Guid EmpresaId { get; private set; }
     public string Nome { get; private set; }
     public bool Ativa { get; private set; }
     public Guid? FilaDestinoId { get; private set; }
     public Visibilidade VisibilidadePadrao { get; private set; } = Visibilidade.CompartilhadoComSetor;
     public IReadOnlyList<PreQualificacao> PreQualificacoes => _preQualificacoes.AsReadOnly();
 
-    internal Categoria(Guid setorId, string nome)
+    internal Categoria(Guid empresaId, Guid setorId, string nome)
     {
         Id = Guid.CreateVersion7();
         SetorId = Guarda.Identificador(setorId, "o setor da categoria");
-        Nome = Guarda.Texto(nome, "o nome da categoria");
+        EmpresaId = Guarda.Identificador(empresaId, "a empresa");
+        Nome = Guarda.Texto(nome, "o nome da categoria", 200);
         Ativa = true;
     }
 
     public void Renomear(string nome)
     {
-        Nome = Guarda.Texto(nome, "o nome da categoria");
+        Nome = Guarda.Texto(nome, "o nome da categoria", 200);
     }
 
     public void ConfigurarDestino(Fila? fila)
@@ -90,6 +96,9 @@ public sealed class Categoria
     public void PreQualificar(Usuario usuario, DateTimeOffset agora)
     {
         ArgumentNullException.ThrowIfNull(usuario);
+
+        if (usuario.EmpresaId != EmpresaId)
+            throw new RegraNegocioException("Escolha um atendente da mesma empresa da categoria.");
 
         if (!usuario.Ativo)
             throw new RegraNegocioException("Somente usuários ativos podem ser pré-qualificados.");

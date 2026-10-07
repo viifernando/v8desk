@@ -2,12 +2,16 @@ namespace v8desk.domain.Entities;
 
 public sealed class VinculoSetor
 {
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private VinculoSetor() { }
+#pragma warning restore CS8618
+
     private readonly HashSet<PapelSetor> _papeis = new();
 
-    public Guid Id { get; }
-    public Usuario Usuario { get; }
+    public Guid Id { get; private set; }
+    public Usuario Usuario { get; private set; }
     public Guid UsuarioId => Usuario.Id;
-    public Guid SetorId { get; }
+    public Guid SetorId { get; private set; }
     public bool Ativo { get; private set; }
     public IReadOnlyCollection<PapelSetor> Papeis => _papeis.ToList().AsReadOnly();
 

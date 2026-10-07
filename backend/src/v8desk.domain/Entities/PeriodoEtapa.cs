@@ -2,11 +2,15 @@ namespace v8desk.domain.Entities;
 
 public sealed class PeriodoEtapa
 {
-    public Guid Id { get; }
-    public StatusChamado Status { get; }
-    public CalendarioEmpresa CalendarioAplicado { get; }
-    public ContextoAtendimento Contexto { get; }
-    public DateTimeOffset Entrada { get; }
+#pragma warning disable CS8618 // Materialização: valores preenchidos pelo EF.
+    private PeriodoEtapa() { }
+#pragma warning restore CS8618
+
+    public Guid Id { get; private set; }
+    public StatusChamado Status { get; private set; }
+    public CalendarioEmpresa CalendarioAplicado { get; private set; }
+    public ContextoAtendimento Contexto { get; private set; }
+    public DateTimeOffset Entrada { get; private set; }
     public DateTimeOffset? Saida { get; private set; }
     public bool Aberto => Saida is null;
 

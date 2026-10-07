@@ -11,6 +11,79 @@ public class RegressoesDominioTests
     private static readonly DateTimeOffset Inicio = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
     private static readonly Permitir Acesso = new();
 
+    public void EntradasInvalidasTemMensagensClarasECodigos()
+    {
+        var erros = new Action[]
+        {
+            () => new HorasUteis(0),
+            () => new HorasUteis(decimal.MaxValue),
+            () => new Avaliacao(6, null, Guid.NewGuid(), Inicio),
+            () => new ContextoOperacao(Guid.Empty, Inicio),
+            () => new ContextoOperacao(Guid.NewGuid(), default),
+            () => new IntervaloExpediente(new(17, 0), new(8, 0)),
+            () => new PoliticaCicloVida(new(32), TimeSpan.Zero, 1, TimeSpan.FromDays(7)),
+            () => new Avaliacao(5, new string('a', 2001), Guid.NewGuid(), Inicio)
+        };
+        foreach (var acao in erros)
+        {
+            try { acao(); throw new Exception("Deveria rejeitar a entrada."); }
+            catch (ValidacaoDominioException erro)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(erro.Codigo));
+                Assert.False(string.IsNullOrWhiteSpace(erro.Campo));
+                Assert.False(erro.Message.Contains("Parameter"));
+            }
+        }
+        Assert.Equal("Comentário", new Avaliacao(5, "  Comentário  ", Guid.NewGuid(), Inicio).Comentario);
+        Assert.Equal<string?>(null, new Avaliacao(5, "  ", Guid.NewGuid(), Inicio).Comentario);
+    }
+
+    public void AcaoRetroativaNaoDeixaMutacaoParcial()
+    {
+        var f = new Cenario();
+        f.Chamado.SolicitarInformacao("Detalhes?", f.Contexto(Inicio.AddHours(2)), Acesso);
+        var versao = f.Chamado.Versao;
+        var mensagens = f.Chamado.Mensagens.Count;
+        Assert.Throws<ValidacaoDominioException>(() => f.Chamado.ResponderSolicitante("Resposta", f.Contexto(Inicio.AddHours(1))));
+        Assert.Equal(versao, f.Chamado.Versao);
+        Assert.Equal(mensagens, f.Chamado.Mensagens.Count);
+        Assert.Equal(StatusChamado.AguardandoInformacao, f.Chamado.Status);
+        Assert.True(f.Chamado.CicloAtual.SlaAtivo(TipoSla.Resolucao)!.Pausado);
+    }
+
+    public void AberturaRejeitaTextosExcessivosEFilaDeOutroSetor()
+    {
+        var f = new Cenario();
+        var dados = new DadosAbertura(f.Empresa.Id, f.Usuario.Id, new(f.Setor.Id, f.Setor.Nome),
+            f.Setor.FilaGeral, f.Categoria, "Título", "Descrição", Prioridade.Media, Visibilidade.CompartilhadoComSetor);
+        Assert.Throws<ValidacaoDominioException>(() => Chamado.Abrir(dados with { Titulo = new string('x', 201) }, f.Contexto(Inicio), f.Config(f.Setor)));
+        Assert.Throws<ValidacaoDominioException>(() => Chamado.Abrir(dados with { Prioridade = (Prioridade)99 }, f.Contexto(Inicio), f.Config(f.Setor)));
+        var outro = f.Empresa.CriarSetor("RH");
+        Assert.Throws<RegraNegocioException>(() => Chamado.Abrir(dados with { Fila = outro.FilaGeral }, f.Contexto(Inicio), f.Config(f.Setor)));
+    }
+
+    public void CategoriaRestritaNaoPodeSerAbertaCompartilhada()
+    {
+        var f = new Cenario();
+        f.Categoria.DefinirVisibilidadePadrao(Visibilidade.AcessoRestrito);
+        var dados = new DadosAbertura(f.Empresa.Id, f.Usuario.Id, new(f.Setor.Id, f.Setor.Nome),
+            f.Setor.FilaGeral, f.Categoria, "Título", "Descrição", Prioridade.Media, Visibilidade.CompartilhadoComSetor);
+        Assert.Throws<RegraNegocioException>(() => Chamado.Abrir(dados, f.Contexto(Inicio), f.Config(f.Setor)));
+        var vinculo = new VinculoSetor(f.Usuario, f.Setor.Id, PapelSetor.Atendente);
+        f.Setor.FilaGeral.AdicionarMembro(vinculo);
+        f.Setor.FilaGeral.AutorizarAcessoRestrito(f.Usuario.Id);
+        var chamado = Chamado.Abrir(dados, f.Contexto(Inicio), f.Config(f.Setor));
+        Assert.Equal(Visibilidade.AcessoRestrito, chamado.Visibilidade);
+    }
+
+    public void UsuariosDeOutraEmpresaNaoPodemIntegrarFilaOuPreQualificacao()
+    {
+        var f = new Cenario();
+        var externo = new Usuario(Guid.NewGuid(), "Externo");
+        Assert.Throws<RegraNegocioException>(() => f.Categoria.PreQualificar(externo, Inicio));
+        Assert.Throws<RegraNegocioException>(() => f.Setor.FilaGeral.AdicionarMembro(new(externo, f.Setor.Id, PapelSetor.Atendente)));
+    }
+
     public void HierarquiaRejeitaCiclosEOutrosSetoresSemModificarArvore()
     {
         var f = new Cenario();
@@ -198,7 +271,7 @@ public class RegressoesDominioTests
             Categoria = Setor.CriarCategoria("Licenças");
             Usuario = new(Empresa.Id, "Carlos");
             Chamado = Chamado.Abrir(new(Empresa.Id, Usuario.Id, new(Setor.Id, Setor.Nome),
-                new(Setor.FilaGeral.Id, Setor.FilaGeral.Nome), Categoria,
+                Setor.FilaGeral, Categoria,
                 "Acesso", "Preciso de acesso", Prioridade.Media, Visibilidade.CompartilhadoComSetor), Contexto(Inicio), Config(Setor));
         }
         public void ConfigurarSla(Setor setor)
