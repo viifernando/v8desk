@@ -111,6 +111,19 @@ public sealed class CicloSla
         return consumido > TimeSpan.Zero ? consumido : TimeSpan.Zero;
     }
 
+    public DateTimeOffset? CalcularVencimento()
+    {
+        if (!Ativo || Pausado)
+            return null;
+
+        var retomadoEm = _pausas.Count > 0 && _pausas[^1].Fim is { } fim && fim > IniciadoEm ? fim : IniciadoEm;
+        var restante = MetaAplicada.ParaTimeSpan() - CalcularConsumido(retomadoEm);
+        if (restante <= TimeSpan.Zero)
+            return retomadoEm;
+
+        return CalendarioAplicado.TentarSomarHorasUteis(retomadoEm, new HorasUteis((decimal)restante.TotalHours));
+    }
+
     public decimal CalcularPercentualConsumido(DateTimeOffset agora) =>
         (decimal)CalcularConsumido(agora).TotalHours / MetaAplicada.Valor * 100;
 

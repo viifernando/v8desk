@@ -77,6 +77,16 @@ public sealed class Setor
         categoria.DefinirPai(novoPai);
     }
 
+    public void ReativarCategoria(Categoria categoria)
+    {
+        GarantirAtivo();
+        ExigirCategoriaDoSetor(categoria);
+        if (_categorias.Any(c => c.Id != categoria.Id && c.Ativa && c.CategoriaPaiId == categoria.CategoriaPaiId
+            && string.Equals(c.Nome, categoria.Nome, StringComparison.OrdinalIgnoreCase)))
+            throw new RegraNegocioException("Já existe categoria ativa com esse nome no mesmo nível.");
+        categoria.Reativar();
+    }
+
     public void ConfigurarRecebimentoCategoria(Categoria categoria, bool permitirComSubcategorias)
     {
         GarantirAtivo();

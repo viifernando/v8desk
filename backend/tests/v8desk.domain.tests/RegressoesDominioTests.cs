@@ -97,6 +97,98 @@ public class RegressoesDominioTests
         Assert.Throws<RegraNegocioException>(() => f.Setor.CriarCategoria("Inválida", outro));
     }
 
+    public void VisibilidadeRestritaDaCategoriaPaiValeParaSubcategorias()
+    {
+        var f = new Cenario();
+        f.Categoria.DefinirVisibilidadePadrao(Visibilidade.AcessoRestrito);
+        var filha = f.Setor.CriarCategoria("Denúncias", f.Categoria);
+        Assert.Equal(Visibilidade.AcessoRestrito, filha.ObterVisibilidadePadraoEfetiva());
+        var dados = new DadosAbertura(f.Empresa.Id, f.Usuario.Id, new(f.Setor.Id, f.Setor.Nome),
+            f.Setor.FilaGeral, filha, "Título", "Descrição", Prioridade.Media, Visibilidade.CompartilhadoComSetor);
+        Assert.Throws<RegraNegocioException>(() => Chamado.Abrir(dados, f.Contexto(Inicio), f.Config(f.Setor)));
+        f.Setor.FilaGeral.AdicionarMembro(new VinculoSetor(f.Usuario, f.Setor.Id, PapelSetor.Atendente));
+        f.Setor.FilaGeral.AutorizarAcessoRestrito(f.Usuario.Id);
+        Assert.Equal(Visibilidade.AcessoRestrito, Chamado.Abrir(dados, f.Contexto(Inicio), f.Config(f.Setor)).Visibilidade);
+    }
+
+    public void MudarParaAssuntoRestritoRestringeOChamado()
+    {
+        var f = new Cenario();
+        var restrita = f.Setor.CriarCategoria("Denúncias");
+        restrita.DefinirVisibilidadePadrao(Visibilidade.AcessoRestrito);
+        var subcategoria = f.Setor.CriarCategoria("Assédio", restrita);
+        var versao = f.Chamado.Versao;
+        Assert.Throws<RegraNegocioException>(() => f.Chamado.AlterarCategoria(subcategoria, f.Setor.FilaGeral, "Reclassificação", f.Contexto(Inicio), Acesso));
+        Assert.Equal(versao, f.Chamado.Versao);
+        Assert.Equal(Visibilidade.CompartilhadoComSetor, f.Chamado.Visibilidade);
+
+        var atendente = new Usuario(f.Empresa.Id, "Ana");
+        f.Setor.FilaGeral.AdicionarMembro(new VinculoSetor(atendente, f.Setor.Id, PapelSetor.Atendente));
+        f.Chamado.Assumir(atendente, f.Setor.FilaGeral, new ContextoOperacao(atendente.Id, Inicio));
+        var gestora = new Usuario(f.Empresa.Id, "Bia");
+        f.Setor.FilaGeral.AdicionarMembro(new VinculoSetor(gestora, f.Setor.Id, PapelSetor.Atendente));
+        f.Setor.FilaGeral.AutorizarAcessoRestrito(gestora.Id);
+        Assert.Throws<RegraNegocioException>(() => f.Chamado.AlterarCategoria(subcategoria, f.Setor.FilaGeral, "Reclassificação", f.Contexto(Inicio), Acesso));
+
+        f.Setor.FilaGeral.AutorizarAcessoRestrito(atendente.Id);
+        f.Chamado.AlterarCategoria(subcategoria, f.Setor.FilaGeral, "Reclassificação", f.Contexto(Inicio), Acesso);
+        Assert.Equal(Visibilidade.AcessoRestrito, f.Chamado.Visibilidade);
+        Assert.Equal(TipoEventoChamado.VisibilidadeAlterada, f.Chamado.Eventos.Last().Tipo);
+    }
+
+    public void TransferirParaAssuntoRestritoRestringeERemoveResponsavelSemAcesso()
+    {
+        var f = new Cenario();
+        var especialistas = f.Setor.CriarFila("Especialistas");
+        var restrita = f.Setor.CriarCategoria("Auditoria");
+        restrita.DefinirVisibilidadePadrao(Visibilidade.AcessoRestrito);
+        var atendente = new Usuario(f.Empresa.Id, "Ana");
+        var vinculo = new VinculoSetor(atendente, f.Setor.Id, PapelSetor.Atendente);
+        f.Setor.FilaGeral.AdicionarMembro(vinculo);
+        especialistas.AdicionarMembro(vinculo);
+        f.Chamado.Assumir(atendente, f.Setor.FilaGeral, new ContextoOperacao(atendente.Id, Inicio));
+        Assert.Throws<RegraNegocioException>(() => f.Chamado.Transferir(especialistas, restrita, "Auditoria",
+            f.Config(f.Setor), f.Contexto(Inicio), Acesso));
+
+        var auditora = new Usuario(f.Empresa.Id, "Clara");
+        especialistas.AdicionarMembro(new VinculoSetor(auditora, f.Setor.Id, PapelSetor.Atendente));
+        especialistas.AutorizarAcessoRestrito(auditora.Id);
+        f.Chamado.Transferir(especialistas, restrita, "Auditoria", f.Config(f.Setor), f.Contexto(Inicio), Acesso);
+        Assert.Equal(Visibilidade.AcessoRestrito, f.Chamado.Visibilidade);
+        Assert.Equal<Guid?>(null, f.Chamado.ResponsavelId);
+        Assert.Equal(StatusChamado.AguardandoTriagem, f.Chamado.Status);
+    }
+
+    public void HierarquiaLimitaProfundidadeInclusiveAoMover()
+    {
+        var f = new Cenario();
+        var filha = f.Setor.CriarCategoria("Equipamentos", f.Categoria);
+        var neta = f.Setor.CriarCategoria("Impressora", filha);
+        Assert.Equal(3, neta.Nivel);
+        Assert.Throws<RegraNegocioException>(() => f.Setor.CriarCategoria("Toner", neta));
+        var raiz = f.Setor.CriarCategoria("Outra raiz");
+        var outraFilha = f.Setor.CriarCategoria("Galho", raiz);
+        Assert.Throws<RegraNegocioException>(() => f.Setor.MoverCategoria(filha, outraFilha));
+        Assert.Equal<Guid?>(f.Categoria.Id, filha.CategoriaPaiId);
+        f.Setor.MoverCategoria(neta, raiz);
+        Assert.Equal(2, neta.Nivel);
+    }
+
+    public void ReativacaoRespeitaCategoriaPaiENomesDoNivel()
+    {
+        var f = new Cenario();
+        var filha = f.Setor.CriarCategoria("ERP", f.Categoria);
+        f.Categoria.Desativar();
+        Assert.False(filha.AtivaNaHierarquia);
+        Assert.False(filha.PodeReceberChamado);
+        filha.Desativar();
+        Assert.Throws<RegraNegocioException>(() => f.Setor.ReativarCategoria(filha));
+        f.Setor.ReativarCategoria(f.Categoria);
+        f.Setor.CriarCategoria("ERP", f.Categoria);
+        Assert.Throws<RegraNegocioException>(() => f.Setor.ReativarCategoria(filha));
+        Assert.False(filha.Ativa);
+    }
+
     public void HerancaDeFilaPermiteSobrescreverInclusiveComFilaGeral()
     {
         var f = new Cenario();
@@ -136,8 +228,8 @@ public class RegressoesDominioTests
         var filha = f.Setor.CriarCategoria("ERP", f.Categoria);
         f.Setor.ConfigurarRecebimentoCategoria(f.Categoria, false);
         Assert.Throws<RegraNegocioException>(() => f.Setor.DeterminarFilaInicial(f.Categoria));
-        Assert.Throws<RegraNegocioException>(() => f.Chamado.AlterarCategoria(f.Categoria, "Teste", f.Contexto(Inicio), Acesso));
-        f.Chamado.AlterarCategoria(filha, "Detalhamento", f.Contexto(Inicio), Acesso);
+        Assert.Throws<RegraNegocioException>(() => f.Chamado.AlterarCategoria(f.Categoria, f.Setor.FilaGeral, "Teste", f.Contexto(Inicio), Acesso));
+        f.Chamado.AlterarCategoria(filha, f.Setor.FilaGeral, "Detalhamento", f.Contexto(Inicio), Acesso);
         f.Categoria.Renomear("Sistemas");
         f.Setor.MoverCategoria(filha, null);
         Assert.Equal("Licenças → ERP", f.Chamado.CategoriaAtual.Caminho);
@@ -224,7 +316,7 @@ public class RegressoesDominioTests
         f.Categoria.Renomear("Novo nome");
         Assert.Equal("Licenças", f.Chamado.CategoriaAtual.NomeNaOcorrencia);
         var nova = f.Setor.CriarCategoria("Equipamentos");
-        f.Chamado.AlterarCategoria(nova, "Correção", f.Contexto(Inicio), Acesso);
+        f.Chamado.AlterarCategoria(nova, f.Setor.FilaGeral, "Correção", f.Contexto(Inicio), Acesso);
         nova.Renomear("Outro nome");
         var evento = f.Chamado.Eventos.Last();
         Assert.Equal("Licenças", evento.Antes["CategoriaNome"]);
@@ -240,6 +332,36 @@ public class RegressoesDominioTests
         f.Setor.ConfigurarCicloVida(new(new(32), TimeSpan.FromDays(7), 1, TimeSpan.FromDays(30)));
         Assert.Equal(Inicio.AddHours(2).AddDays(2), f.Chamado.CicloAtual.LimiteAvaliacao);
         Assert.Throws<RegraNegocioException>(() => f.Chamado.Avaliar(5, null, f.Contexto(Inicio.AddDays(3))));
+    }
+
+    public void ProximoVencimentoAcompanhaPausasRetomadasEResolucao()
+    {
+        var f = new Cenario();
+        Assert.Equal<DateTimeOffset?>(Inicio.AddHours(9), f.Chamado.ProximoVencimentoEm);
+        f.Chamado.SolicitarInformacao("Qual usuário?", f.Contexto(Inicio.AddHours(1)), Acesso);
+        Assert.Equal<DateTimeOffset?>(null, f.Chamado.ProximoVencimentoEm);
+        f.Chamado.ResponderSolicitante("joao.silva", f.Contexto(Inicio.AddHours(2)));
+        Assert.Equal<DateTimeOffset?>(Inicio.AddDays(1).AddHours(1), f.Chamado.ProximoVencimentoEm);
+        f.Chamado.Resolver("Senha redefinida", f.Config(f.Setor), f.Contexto(Inicio.AddHours(3)), Acesso);
+        Assert.Equal<DateTimeOffset?>(null, f.Chamado.ProximoVencimentoEm);
+    }
+
+    public void NotaAbaixoDaMediaExigeJustificativa()
+    {
+        var f = new Cenario();
+        f.Chamado.Resolver("Resolvido", f.Config(f.Setor), f.Contexto(Inicio.AddHours(1)), Acesso);
+        f.Chamado.ConfirmarSolucao(f.Contexto(Inicio.AddHours(2)));
+        var versao = f.Chamado.Versao;
+        var erro = Assert.ThrowsReturning<ValidacaoDominioException>(() => f.Chamado.Avaliar(2, "   ", f.Contexto(Inicio.AddHours(3))));
+        Assert.Equal("justificativa_obrigatoria", erro.Codigo);
+        Assert.Equal("comentario", erro.Campo);
+        Assert.Equal(versao, f.Chamado.Versao);
+        Assert.Equal<Avaliacao?>(null, f.Chamado.CicloAtual.Avaliacao);
+        f.Chamado.Avaliar(2, "Demorou para retornar", f.Contexto(Inicio.AddHours(3)));
+        Assert.Equal("Demorou para retornar", f.Chamado.CicloAtual.Avaliacao!.Comentario);
+        Assert.True(Avaliacao.ExigeJustificativa(1));
+        Assert.False(Avaliacao.ExigeJustificativa(3));
+        Assert.Equal(3, new Avaliacao(3, null, f.Usuario.Id, Inicio).Nota);
     }
 
     public void EsperaPausaResolucaoEMensagensAdicionaisNaoReiniciamResposta()

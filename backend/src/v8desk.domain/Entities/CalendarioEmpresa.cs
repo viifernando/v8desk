@@ -126,9 +126,16 @@ public sealed class CalendarioEmpresa
         return total;
     }
 
-    public DateTimeOffset SomarHorasUteis(DateTimeOffset inicio, HorasUteis prazo)
+    public DateTimeOffset SomarHorasUteis(DateTimeOffset inicio, HorasUteis prazo) =>
+        TentarSomarHorasUteis(inicio, prazo)
+        ?? throw new RegraNegocioException("Não foi possível calcular o prazo dentro do limite de dias do calendário.");
+
+    public DateTimeOffset? TentarSomarHorasUteis(DateTimeOffset inicio, HorasUteis prazo)
     {
         ArgumentNullException.ThrowIfNull(prazo);
+
+        if (Expediente.Values.All(i => i.Count == 0) && Excecoes.All(e => e.Intervalos.Count == 0))
+            return null;
 
         var fuso = ObterFuso();
         var data = DataLocal(inicio, fuso);
@@ -156,7 +163,7 @@ public sealed class CalendarioEmpresa
             data = data.AddDays(1);
         }
 
-        throw new RegraNegocioException("Não foi possível calcular o prazo dentro do limite de dias do calendário.");
+        return null;
     }
 
     public DateTimeOffset SubtrairDiasUteis(DateTimeOffset limite, int dias)

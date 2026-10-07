@@ -25,6 +25,12 @@ public static class PersistenciaTests
         Assert.True(sql.Contains("eventos_chamado"));
         Assert.True(sql.Contains("outbox"));
         Assert.False(sql.Contains("xmin xid")); // xmin é coluna de sistema, não deve ser criada.
+        Assert.True(sql.Contains("ck_periodo_datas"));
+        Assert.True(sql.Contains("nome_comparacao"));
+        Assert.True(sql.Contains("comandos_executados"));
+        var categoria = modelo.FindEntityType(typeof(Categoria))!;
+        Assert.True(categoria.GetForeignKeys().Where(f => f.PrincipalEntityType.ClrType is var t &&
+            (t == typeof(Categoria) || t == typeof(Fila))).All(f => f.Properties.Any(p => p.Name == "SetorId")));
     }
 
     public static void FiltroDeEmpresaEstaNoSqlETrocaPorContexto()
@@ -87,6 +93,8 @@ public static class PersistenciaTests
         var empresa = new Empresa("Empresa", new CalendarioEmpresa("UTC"));
         var setor = empresa.CriarSetor("TI");
         var usuario = new Usuario(empresa.Id, "Carlos");
+        var vinculo = new VinculoSetor(usuario, setor.Id, PapelSetor.Atendente);
+        setor.FilaGeral.AdicionarMembro(vinculo);
         var categoria = setor.CriarCategoria("Sistemas");
         foreach (var prioridade in Enum.GetValues<Prioridade>())
             foreach (var tipo in Enum.GetValues<TipoSla>()) setor.Sla.DefinirMeta(prioridade, tipo, new(8));
@@ -97,13 +105,36 @@ public static class PersistenciaTests
         using var db = new V8DeskDbContext(new DbContextOptionsBuilder<V8DeskDbContext>()
             .UseNpgsql("Host=localhost;Database=sem_conexao;Username=teste")
             .AddInterceptors(new SemGravacao()).Options, new EmpresaTeste(empresa.Id));
-        db.AddRange(empresa, setor, usuario, chamado);
+        db.AddRange(empresa, setor, usuario, vinculo, chamado);
         Assert.Equal(0, db.SaveChanges()); // Interceptor suprime o acesso ao banco, após validações locais.
         Assert.True(db.ChangeTracker.Entries().Where(e => e.Entity is not Empresa)
             .All(e => (Guid)e.Property("EmpresaId").CurrentValue! == empresa.Id));
         Assert.Equal(chamado.Eventos.Count, db.ChangeTracker.Entries<OutboxMensagem>().Count());
         var json = db.ChangeTracker.Entries<OutboxMensagem>().Single().Entity.Payload;
         Assert.True(json.Contains("Sequencia"));
+        Assert.Equal(setor.FilaGeral.Nome.ToUpperInvariant(), db.Entry(setor.FilaGeral).Property("NomeComparacao").CurrentValue);
+        Assert.Equal(setor.Id, db.Entry(setor.FilaGeral.Membros.Single()).Property("SetorId").CurrentValue);
+        foreach (var entrada in db.ChangeTracker.Entries())
+            foreach (var campo in entrada.Properties.Where(p => p.Metadata.GetColumnType() == "jsonb" && p.CurrentValue is not null))
+            {
+                var conversor = campo.Metadata.GetValueConverter();
+                if (conversor is null) continue;
+                var original = conversor.ConvertToProvider(campo.CurrentValue);
+                var restaurado = conversor.ConvertFromProvider(original);
+                Assert.Equal(original, conversor.ConvertToProvider(restaurado));
+            }
+    }
+
+    public static void ErrosDoBancoNaoExponhemDetalhes()
+    {
+        foreach (var codigo in new[] { Npgsql.PostgresErrorCodes.UniqueViolation, Npgsql.PostgresErrorCodes.ForeignKeyViolation, Npgsql.PostgresErrorCodes.CheckViolation })
+        {
+            var erro = new Npgsql.PostgresException("segredo-interno", "ERROR", "ERROR", codigo);
+            var amigavel = ErrosPersistencia.Traduzir(erro);
+            Assert.True(amigavel is not null);
+            Assert.False(amigavel!.Message.Contains("segredo-interno"));
+        }
+        Assert.True(ErrosPersistencia.Traduzir(new("segredo", "ERROR", "ERROR", "XX000")) is null);
     }
 
     private sealed class SemGravacao : SaveChangesInterceptor

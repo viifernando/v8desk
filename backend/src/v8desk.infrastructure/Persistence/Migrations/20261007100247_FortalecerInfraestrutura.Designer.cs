@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using v8desk.infrastructure.Persistence;
@@ -11,9 +12,11 @@ using v8desk.infrastructure.Persistence;
 namespace v8desk.infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(V8DeskDbContext))]
-    partial class V8DeskDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007100247_FortalecerInfraestrutura")]
+    partial class FortalecerInfraestrutura
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -117,12 +120,6 @@ namespace v8desk.infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("categoria_atual");
 
-                    b.Property<string>("CategoriaCaminhoIds")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("categoria_caminho_ids")
-                        .HasComputedColumnSql("jsonb_path_query_array(categoria_atual, '$[*].Id')", true);
-
                     b.Property<string>("CicloVidaAplicado")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -162,22 +159,11 @@ namespace v8desk.infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("metas_sla");
 
-                    b.Property<long>("Numero")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("numero");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Numero"));
-
                     b.Property<string>("Prioridade")
                         .IsRequired()
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("prioridade");
-
-                    b.Property<DateTimeOffset?>("ProximoVencimentoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("proximo_vencimento_em");
 
                     b.Property<Guid?>("ResponsavelConsultaId")
                         .ValueGeneratedOnAddOrUpdate()
@@ -237,13 +223,6 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     b.HasKey("EmpresaId", "Id");
 
-                    b.HasIndex("CategoriaCaminhoIds");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CategoriaCaminhoIds"), "gin");
-
-                    b.HasIndex("EmpresaId", "Numero")
-                        .IsUnique();
-
                     b.HasIndex("EmpresaId", "SolicitanteId");
 
                     b.HasIndex("EmpresaId", "Status", "LimiteValidacao")
@@ -251,17 +230,10 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "FilaConsultaId", "AbertoEm", "Id");
 
-                    b.HasIndex("EmpresaId", "FilaConsultaId", "AtualizadoEm", "Id");
-
-                    b.HasIndex("EmpresaId", "FilaConsultaId", "ProximoVencimentoEm", "Id")
-                        .HasFilter("status IN ('AguardandoTriagem', 'Aceito', 'EmAtendimento', 'AguardandoInformacao')");
-
                     b.HasIndex("EmpresaId", "FilaConsultaId", "Status", "AbertoEm", "Id")
                         .HasFilter("status NOT IN ('Encerrado', 'Cancelado', 'Resolvido')");
 
                     b.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "AbertoEm", "Id");
-
-                    b.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "ProximoVencimentoEm", "Id");
 
                     b.ToTable("chamados", (string)null);
                 });
@@ -586,10 +558,6 @@ namespace v8desk.infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("autorizado_para_restritos");
 
-                    b.Property<Guid>("SetorId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("setor_id");
-
                     b.Property<Guid>("VinculoId")
                         .HasColumnType("uuid")
                         .HasColumnName("vinculo_id");
@@ -602,9 +570,7 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     b.HasKey("EmpresaId", "FilaId", "UsuarioId");
 
-                    b.HasIndex("EmpresaId", "SetorId", "FilaId");
-
-                    b.HasIndex("EmpresaId", "SetorId", "UsuarioId", "VinculoId");
+                    b.HasIndex("EmpresaId", "VinculoId");
 
                     b.ToTable("membros_fila", (string)null);
                 });
@@ -890,6 +856,8 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     b.HasKey("EmpresaId", "Id");
 
+                    b.HasIndex("EmpresaId", "SetorId");
+
                     b.HasIndex("EmpresaId", "UsuarioPersistidoId", "SetorId")
                         .IsUnique()
                         .HasFilter("ativo = TRUE");
@@ -1108,15 +1076,13 @@ namespace v8desk.infrastructure.Persistence.Migrations
                 {
                     b.HasOne("v8desk.domain.Entities.Fila", null)
                         .WithMany("Membros")
-                        .HasForeignKey("EmpresaId", "SetorId", "FilaId")
-                        .HasPrincipalKey("EmpresaId", "SetorId", "Id")
+                        .HasForeignKey("EmpresaId", "FilaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("v8desk.domain.Entities.VinculoSetor", "Vinculo")
                         .WithMany()
-                        .HasForeignKey("EmpresaId", "SetorId", "UsuarioId", "VinculoId")
-                        .HasPrincipalKey("EmpresaId", "SetorId", "UsuarioPersistidoId", "Id")
+                        .HasForeignKey("EmpresaId", "VinculoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

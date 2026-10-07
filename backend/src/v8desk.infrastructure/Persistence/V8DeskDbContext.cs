@@ -55,6 +55,8 @@ public sealed class V8DeskDbContext : DbContext, IUnidadeTrabalho
         PrepararGravacao();
         try { return base.SaveChanges(acceptAllChangesOnSuccess); }
         catch (DbUpdateConcurrencyException) { throw ConflitoConcorrencia(); }
+        catch (DbUpdateException erro) when (erro.InnerException is Npgsql.PostgresException pg && ErrosPersistencia.Traduzir(pg) is not null)
+        { throw ErrosPersistencia.Traduzir((Npgsql.PostgresException)erro.InnerException!)!; }
     }
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess,
@@ -63,6 +65,8 @@ public sealed class V8DeskDbContext : DbContext, IUnidadeTrabalho
         PrepararGravacao();
         try { return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken); }
         catch (DbUpdateConcurrencyException) { throw ConflitoConcorrencia(); }
+        catch (DbUpdateException erro) when (erro.InnerException is Npgsql.PostgresException pg && ErrosPersistencia.Traduzir(pg) is not null)
+        { throw ErrosPersistencia.Traduzir((Npgsql.PostgresException)erro.InnerException!)!; }
     }
 
     public Task<int> SalvarAsync(CancellationToken cancellationToken = default) => SaveChangesAsync(cancellationToken);
@@ -70,6 +74,11 @@ public sealed class V8DeskDbContext : DbContext, IUnidadeTrabalho
     private void PrepararGravacao()
     {
         ChangeTracker.DetectChanges();
+        foreach (var entrada in ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified))
+        {
+            if (entrada.Entity is Fila fila) entrada.Property("NomeComparacao").CurrentValue = fila.Nome.ToUpperInvariant();
+            if (entrada.Entity is Categoria categoria) entrada.Property("NomeComparacao").CurrentValue = categoria.Nome.ToUpperInvariant();
+        }
         foreach (var evento in ChangeTracker.Entries<EventoChamado>().Where(e => e.State == EntityState.Added).ToArray())
         {
             if (!ChangeTracker.Entries<OutboxMensagem>().Any(e => e.Entity.Id == evento.Entity.Id))

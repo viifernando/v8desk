@@ -4,7 +4,7 @@ namespace v8desk.application.Abstractions;
 
 public interface IChamadoRepository
 {
-    Task<Chamado?> ObterParaAtualizacaoAsync(Guid id, CancellationToken cancellationToken = default, Guid? mensagemId = null);
+    Task<Chamado?> ObterParaAtualizacaoAsync(Guid id, CancellationToken cancellationToken = default);
     void Adicionar(Chamado chamado);
 }
 

@@ -17,8 +17,11 @@ public static class DependencyInjection
                 .CommandTimeout(30).MigrationsHistoryTable("__ef_migrations_history"))
             .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
         services.AddScoped<IChamadoRepository, ChamadoRepository>();
+        services.AddScoped<IConfiguracaoRepository, ConfiguracaoRepository>();
         services.AddScoped<IUnidadeTrabalho>(sp => sp.GetRequiredService<V8DeskDbContext>());
         services.AddScoped<ChamadoConsultas>();
+        services.AddScoped<IExecutorComandoIdempotente, ExecutorComandoIdempotente>();
+        services.AddScoped<OutboxProcessador>();
         return services;
     }
 }

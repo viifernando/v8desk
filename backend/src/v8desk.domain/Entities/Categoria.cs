@@ -6,25 +6,49 @@ public sealed class Categoria
     private Categoria() { }
 #pragma warning restore CS8618
 
+    public const int ProfundidadeMaxima = 3;
+
     private readonly List<PreQualificacao> _preQualificacoes = new();
     private readonly List<Categoria> _filhas = new();
     public Categoria? Pai { get; private set; }
     public Guid? CategoriaPaiId => Pai?.Id;
     public IReadOnlyList<Categoria> Subcategorias => _filhas.AsReadOnly();
     public bool PermiteChamadosComSubcategorias { get; private set; } = true;
-    public bool PodeReceberChamado => Ativa && (Pai?.HierarquiaAtiva ?? true)
+    public bool PodeReceberChamado => AtivaNaHierarquia
         && (PermiteChamadosComSubcategorias || !_filhas.Any(c => c.Ativa));
-    private bool HierarquiaAtiva => Ativa && (Pai?.HierarquiaAtiva ?? true);
+    public bool AtivaNaHierarquia => Ativa && (Pai?.AtivaNaHierarquia ?? true);
+    public int Nivel => (Pai?.Nivel ?? 0) + 1;
 
     internal void DefinirPai(Categoria? pai)
     {
-        if (pai is not null && (pai.SetorId != SetorId || !pai.HierarquiaAtiva))
+        if (pai is not null && (pai.SetorId != SetorId || !pai.AtivaNaHierarquia))
             throw new RegraNegocioException("Categoria pai deve estar ativa e pertencer ao mesmo setor.");
         for (var atual = pai; atual is not null; atual = atual.Pai)
             if (atual.Id == Id) throw new RegraNegocioException("A hierarquia não permite ciclos.");
+        if ((pai?.Nivel ?? 0) + AlturaDaSubarvore() > ProfundidadeMaxima)
+            throw new RegraNegocioException($"Use no máximo {ProfundidadeMaxima} níveis de categorias.");
         Pai?._filhas.Remove(this);
         Pai = pai;
         pai?._filhas.Add(this);
+    }
+
+    private int AlturaDaSubarvore() => 1 + (_filhas.Count == 0 ? 0 : _filhas.Max(f => f.AlturaDaSubarvore()));
+
+    public Visibilidade ObterVisibilidadePadraoEfetiva()
+    {
+        for (var atual = this; atual is not null; atual = atual.Pai)
+            if (atual.VisibilidadePadrao == Visibilidade.AcessoRestrito)
+                return Visibilidade.AcessoRestrito;
+        return Visibilidade.CompartilhadoComSetor;
+    }
+
+    internal void Reativar()
+    {
+        if (Ativa)
+            throw new RegraNegocioException("A categoria já está ativa.");
+        if (Pai is not null && !Pai.AtivaNaHierarquia)
+            throw new RegraNegocioException("Reative primeiro a categoria pai.");
+        Ativa = true;
     }
 
     internal void ConfigurarRecebimento(bool permitir) => PermiteChamadosComSubcategorias = permitir;

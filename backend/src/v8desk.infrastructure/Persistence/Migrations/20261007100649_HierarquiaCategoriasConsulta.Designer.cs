@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using v8desk.infrastructure.Persistence;
@@ -11,9 +12,11 @@ using v8desk.infrastructure.Persistence;
 namespace v8desk.infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(V8DeskDbContext))]
-    partial class V8DeskDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007100649_HierarquiaCategoriasConsulta")]
+    partial class HierarquiaCategoriasConsulta
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -162,22 +165,11 @@ namespace v8desk.infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("metas_sla");
 
-                    b.Property<long>("Numero")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("numero");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Numero"));
-
                     b.Property<string>("Prioridade")
                         .IsRequired()
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
                         .HasColumnName("prioridade");
-
-                    b.Property<DateTimeOffset?>("ProximoVencimentoEm")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("proximo_vencimento_em");
 
                     b.Property<Guid?>("ResponsavelConsultaId")
                         .ValueGeneratedOnAddOrUpdate()
@@ -241,9 +233,6 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CategoriaCaminhoIds"), "gin");
 
-                    b.HasIndex("EmpresaId", "Numero")
-                        .IsUnique();
-
                     b.HasIndex("EmpresaId", "SolicitanteId");
 
                     b.HasIndex("EmpresaId", "Status", "LimiteValidacao")
@@ -251,17 +240,10 @@ namespace v8desk.infrastructure.Persistence.Migrations
 
                     b.HasIndex("EmpresaId", "FilaConsultaId", "AbertoEm", "Id");
 
-                    b.HasIndex("EmpresaId", "FilaConsultaId", "AtualizadoEm", "Id");
-
-                    b.HasIndex("EmpresaId", "FilaConsultaId", "ProximoVencimentoEm", "Id")
-                        .HasFilter("status IN ('AguardandoTriagem', 'Aceito', 'EmAtendimento', 'AguardandoInformacao')");
-
                     b.HasIndex("EmpresaId", "FilaConsultaId", "Status", "AbertoEm", "Id")
                         .HasFilter("status NOT IN ('Encerrado', 'Cancelado', 'Resolvido')");
 
                     b.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "AbertoEm", "Id");
-
-                    b.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "ProximoVencimentoEm", "Id");
 
                     b.ToTable("chamados", (string)null);
                 });

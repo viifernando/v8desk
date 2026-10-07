@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<v8desk.application.Abstractions.IEmpresaAtual, v8desk.api.Tenancy.EmpresaAtualHttp>();
+builder.Services.AddScoped<v8desk.application.Abstractions.IUsuarioAtual, v8desk.api.Tenancy.EmpresaAtualHttp>();
 var conexao = builder.Configuration.GetConnectionString("V8Desk");
 if (!string.IsNullOrWhiteSpace(conexao))
     v8desk.infrastructure.DependencyInjection.AdicionarInfraestrutura(builder.Services, conexao);

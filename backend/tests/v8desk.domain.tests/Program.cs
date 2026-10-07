@@ -4,6 +4,7 @@ var suite = new RegressoesDominioTests();
 var casos = new (string Nome, Action Executar)[]
 {
     ("Snapshots JSONB", PersistenciaTests.SnapshotsJsonPreservamCalendarioAnexosECaminho),
+    ("Conflitos do banco com mensagens amigáveis", PersistenciaTests.ErrosDoBancoNaoExponhemDetalhes),
     ("Grafo e outbox transacional preparada", PersistenciaTests.GrafoDeChamadoRecebeEmpresaEOutboxSemDependenciaDeBanco),
     ("Modelo EF/PostgreSQL", PersistenciaTests.ModeloPostgresGeraSchemaComIndicesConcorrenciaEIsolamento),
     ("Filtro de empresa no SQL", PersistenciaTests.FiltroDeEmpresaEstaNoSqlETrocaPorContexto),
@@ -16,6 +17,11 @@ var casos = new (string Nome, Action Executar)[]
     ("Erros HTTP e proteção dos detalhes", ApiErrorsTests.ErrosConhecidosSaoAmigaveisEFalhasInternasNaoVazamDetalhes),
     ("Hierarquia sem ciclos e entre setores", suite.HierarquiaRejeitaCiclosEOutrosSetoresSemModificarArvore),
     ("Herança de fila", suite.HerancaDeFilaPermiteSobrescreverInclusiveComFilaGeral),
+    ("Visibilidade restrita herdada", suite.VisibilidadeRestritaDaCategoriaPaiValeParaSubcategorias),
+    ("Mudar para assunto restrito", suite.MudarParaAssuntoRestritoRestringeOChamado),
+    ("Transferir para assunto restrito", suite.TransferirParaAssuntoRestritoRestringeERemoveResponsavelSemAcesso),
+    ("Profundidade máxima da hierarquia", suite.HierarquiaLimitaProfundidadeInclusiveAoMover),
+    ("Reativação na hierarquia", suite.ReativacaoRespeitaCategoriaPaiENomesDoNivel),
     ("Herança de pré-qualificação", suite.PreQualificacaoHerdaListaMaisProximaSemRestringirAcesso),
     ("Seleção e caminho histórico", suite.SetorControlaSelecaoECaminhoHistoricoSobreviveAReorganizacao),
     ("Calendário histórico", suite.AlterarExpedienteEFeriadoNaoReescreveSlaNemEtapaConcluidos),
@@ -26,6 +32,10 @@ var casos = new (string Nome, Action Executar)[]
     ("Coleções protegidas", suite.HistoricoEPapeisNaoPodemSerModificadosPelasColecoesExpostas),
     ("Nomes históricos", suite.RenomearCategoriaPreservaNomesDeAberturaETroca),
     ("Prazo da avaliação", suite.AvaliacaoUsaPrazoGravadoNoEncerramentoMesmoAposAlterarConfiguracao),
+    ("Justificativa em nota baixa", suite.NotaAbaixoDaMediaExigeJustificativa),
+    ("Próximo vencimento do chamado", suite.ProximoVencimentoAcompanhaPausasRetomadasEResolucao),
+    ("Paginação: SQL de todas as ordens", PaginacaoTests.TodasAsOrdensGeramSqlComCursorEFiltros),
+    ("Paginação: cursor inválido", PaginacaoTests.CursorAdulteradoOuDeOutraOrdemEhRecusado),
     ("Pausas e mensagens consecutivas", suite.EsperaPausaResolucaoEMensagensAdicionaisNaoReiniciamResposta)
 };
 var falhas = 0;
@@ -35,6 +45,13 @@ foreach (var caso in casos)
     catch (Exception ex) { falhas++; Console.Error.WriteLine($"FALHOU: {caso.Nome}\n{ex}"); }
 }
 Console.WriteLine($"{casos.Length - falhas}/{casos.Length} passaram.");
+var conexaoIntegracao = Environment.GetEnvironmentVariable("V8DESK_POSTGRES_TEST_CONNECTION");
+if (!string.IsNullOrWhiteSpace(conexaoIntegracao))
+{
+    try { await PostgresIntegracaoTests.ExecutarAsync(conexaoIntegracao); }
+    catch (Exception erro) { falhas++; Console.Error.WriteLine($"FALHOU: integração PostgreSQL\n{erro}"); }
+}
+else Console.WriteLine("PostgreSQL real: não executado (configure V8DESK_POSTGRES_TEST_CONNECTION para habilitar).");
 return falhas == 0 ? 0 : 1;
 
 namespace v8desk.domain.tests
@@ -56,5 +73,11 @@ namespace v8desk.domain.tests
             throw new Exception($"Esperada exceção {typeof(T).Name}.");
         }
         public static void ThrowsAny<T>(Action executar) where T : Exception => Throws<T>(executar);
+        public static T ThrowsReturning<T>(Action executar) where T : Exception
+        {
+            try { executar(); }
+            catch (T erro) { return erro; }
+            throw new Exception($"Esperada exceção {typeof(T).Name}.");
+        }
     }
 }

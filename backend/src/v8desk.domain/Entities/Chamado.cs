@@ -21,6 +21,7 @@ public sealed class Chamado
     private readonly List<CicloAtendimento> _ciclos = new();
 
     public Guid Id { get; private set; }
+    public long Numero { get; private set; }
     public Guid EmpresaId { get; private set; }
     public Guid SolicitanteId { get; private set; }
     public ReferenciaHistorica SetorOrigemNaAbertura { get; private set; }
@@ -39,6 +40,7 @@ public sealed class Chamado
     public PoliticaCicloVida CicloVidaAplicado { get; private set; }
     public DateTimeOffset AbertoEm { get; private set; }
     public DateTimeOffset AtualizadoEm { get; private set; }
+    public DateTimeOffset? ProximoVencimentoEm { get; private set; }
     public DateTimeOffset? LimiteValidacao { get; private set; }
     public DateTimeOffset? LembreteValidacaoEm { get; private set; }
     public DateTimeOffset? LimiteReabertura { get; private set; }
@@ -46,7 +48,8 @@ public sealed class Chamado
     public IReadOnlyList<EventoChamado> Eventos => _eventos.AsReadOnly();
     public IReadOnlyList<Mensagem> Mensagens => _mensagens.AsReadOnly();
     public IReadOnlyList<CicloAtendimento> Ciclos => _ciclos.AsReadOnly();
-    public CicloAtendimento CicloAtual => _ciclos[^1];
+    public CicloAtendimento CicloAtual => _ciclos.MaxBy(c => c.Numero)
+        ?? throw new RegraNegocioException("O chamado não possui ciclo de atendimento.");
 
     private Chamado(Guid empresaId, Guid solicitanteId, ReferenciaHistorica setorOrigem,
         string titulo, string descricao, Prioridade prioridade, Visibilidade visibilidade,
@@ -98,7 +101,7 @@ public sealed class Chamado
         var descricao = Guarda.Texto(dados.Descricao, "a descrição", 20000);
         var prioridade = Guarda.Definido(dados.Prioridade, "a prioridade");
         var visibilidade = Guarda.Definido(dados.Visibilidade, "a visibilidade");
-        if (dados.Categoria.VisibilidadePadrao == Visibilidade.AcessoRestrito)
+        if (dados.Categoria.ObterVisibilidadePadraoEfetiva() == Visibilidade.AcessoRestrito)
             visibilidade = Visibilidade.AcessoRestrito;
         if (visibilidade == Visibilidade.AcessoRestrito && !dados.Fila.TemAtendenteAutorizadoParaRestritos())
             throw new RegraNegocioException("Esta fila ainda não tem atendentes autorizados para acesso restrito. Peça ao gestor para configurar o acesso.");
@@ -292,13 +295,15 @@ public sealed class Chamado
             motivoValido, Dados(("Prioridade", anterior)), Dados(("Prioridade", Prioridade)));
     }
 
-    public void AlterarCategoria(Categoria categoria, string motivo, ContextoOperacao contexto,
+    public void AlterarCategoria(Categoria categoria, Fila filaAtual, string motivo, ContextoOperacao contexto,
         IAutorizacaoChamado acesso)
     {
         ExigirAtendimento(contexto, acesso);
         ArgumentNullException.ThrowIfNull(categoria);
+        ArgumentNullException.ThrowIfNull(filaAtual);
         ExigirChamadoAtivo();
         var motivoValido = Guarda.Texto(motivo, "o motivo");
+        ExigirFilaAtual(filaAtual);
         if (categoria.SetorId != SetorAtualId)
             throw new RegraNegocioException("A categoria deve pertencer ao setor atual do chamado.");
         if (!categoria.Ativa)
@@ -306,12 +311,36 @@ public sealed class Chamado
         if (categoria.Id == CategoriaId)
             throw new RegraNegocioException("A categoria informada já é a atual.");
 
-        var anterior = CategoriaAtual;
         categoria.ExigirRecebimento();
+        var restringir = ExigirAcessoParaCategoriaRestrita(categoria, filaAtual);
+        if (restringir && ResponsavelId is { } responsavelId && !filaAtual.PodeAcessarRestrito(responsavelId))
+            throw new RegraNegocioException("Este assunto é restrito e o responsável atual não tem acesso a chamados restritos. Troque o responsável antes de mudar o assunto.");
+
+        var anterior = CategoriaAtual;
         CategoriaAtual = categoria.CriarReferenciaHistorica();
         RegistrarEvento(TipoEventoChamado.CategoriaAlterada, contexto.AutorId, contexto.Agora,
             motivoValido, Dados(("Categoria", anterior.Id), ("CategoriaNome", anterior.NomeNaOcorrencia), ("CategoriaCaminho", anterior.Caminho)),
             Dados(("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho)));
+        if (restringir)
+            RestringirPorCategoria(contexto);
+    }
+
+    private bool ExigirAcessoParaCategoriaRestrita(Categoria categoria, Fila fila)
+    {
+        if (Visibilidade == Visibilidade.AcessoRestrito
+            || categoria.ObterVisibilidadePadraoEfetiva() != Visibilidade.AcessoRestrito)
+            return false;
+        if (!fila.TemAtendenteAutorizadoParaRestritos())
+            throw new RegraNegocioException("Este assunto é restrito e a fila ainda não tem atendentes autorizados para acesso restrito. Peça ao gestor para configurar o acesso.");
+        return true;
+    }
+
+    private void RestringirPorCategoria(ContextoOperacao contexto)
+    {
+        Visibilidade = Visibilidade.AcessoRestrito;
+        RegistrarEvento(TipoEventoChamado.VisibilidadeAlterada, contexto.AutorId, contexto.Agora,
+            "O assunto do chamado exige acesso restrito.",
+            Dados(("Visibilidade", Visibilidade.CompartilhadoComSetor)), Dados(("Visibilidade", Visibilidade)));
     }
 
     public void Transferir(Fila destino, Categoria categoriaDestino, string motivo,
@@ -341,6 +370,7 @@ public sealed class Chamado
             throw new RegraNegocioException("A fila de destino não possui atendente autorizado para chamados restritos.");
 
         categoriaDestino.ExigirRecebimento();
+        var restringir = ExigirAcessoParaCategoriaRestrita(categoriaDestino, destino);
         var mesmoSetor = destino.SetorId == SetorAtualId;
         var novasMetas = mesmoSetor
             ? null
@@ -349,6 +379,9 @@ public sealed class Chamado
         var filaDestino = new ReferenciaHistorica(destino.Id, destino.Nome);
         var antes = Dados(("Status", Status), ("Setor", SetorAtualId), ("Fila", FilaAtualId),
             ("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho), ("Responsavel", ResponsavelId));
+
+        if (restringir)
+            Visibilidade = Visibilidade.AcessoRestrito;
 
         if (novasMetas is null)
         {
@@ -385,6 +418,10 @@ public sealed class Chamado
             antes,
             Dados(("Status", Status), ("Setor", SetorAtualId), ("Fila", FilaAtualId),
                 ("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho), ("Responsavel", ResponsavelId)));
+        if (restringir)
+            RegistrarEvento(TipoEventoChamado.VisibilidadeAlterada, contexto.AutorId, contexto.Agora,
+                "O assunto do chamado exige acesso restrito.",
+                Dados(("Visibilidade", Visibilidade.CompartilhadoComSetor)), Dados(("Visibilidade", Visibilidade)));
     }
 
     public void AlterarVisibilidade(Visibilidade visibilidade, string motivo, Fila filaAtual,
@@ -650,6 +687,9 @@ public sealed class Chamado
             antes, depois, Versao + 1));
         Versao++;
         AtualizadoEm = agora;
+        ProximoVencimentoEm = StatusAtivos.Contains(Status)
+            ? CicloAtual.CiclosSla.Select(s => s.CalcularVencimento()).Where(v => v is not null).Min()
+            : null;
     }
 
     private bool PodeAtenderNaFila(Guid usuarioId, Fila fila) =>

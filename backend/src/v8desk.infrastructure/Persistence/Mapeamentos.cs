@@ -47,26 +47,35 @@ internal static class Mapeamentos
         categoria.Property(x => x.Nome).HasMaxLength(200);
         categoria.Ignore(x => x.CategoriaPaiId);
         categoria.Ignore(x => x.PodeReceberChamado);
+        categoria.Ignore(x => x.AtivaNaHierarquia);
+        categoria.Ignore(x => x.Nivel);
         categoria.Ignore(x => x.PreQualificacoes);
         categoria.Property<Guid?>("PaiId");
+        categoria.HasAlternateKey("EmpresaId", "SetorId", "Id");
         categoria.HasOne(x => x.Pai).WithMany(x => x.Subcategorias)
-            .HasForeignKey("EmpresaId", "PaiId").OnDelete(DeleteBehavior.Restrict);
+            .HasForeignKey("EmpresaId", "SetorId", "PaiId").HasPrincipalKey("EmpresaId", "SetorId", "Id").OnDelete(DeleteBehavior.Restrict);
         categoria.Navigation(x => x.Subcategorias).HasField("_filhas").UsePropertyAccessMode(PropertyAccessMode.Field);
-        categoria.HasOne<Fila>().WithMany().HasForeignKey("EmpresaId", "FilaDestinoId").OnDelete(DeleteBehavior.Restrict);
+        categoria.HasOne<Fila>().WithMany().HasForeignKey("EmpresaId", "SetorId", "FilaDestinoId")
+            .HasPrincipalKey("EmpresaId", "SetorId", "Id").OnDelete(DeleteBehavior.Restrict);
         JsonPersistencia.Mapear(categoria.Property<List<PreQualificacao>>("_preQualificacoes").HasColumnName("pre_qualificacoes"));
-        categoria.HasIndex("EmpresaId", "SetorId", "PaiId", "Nome").IsUnique().AreNullsDistinct(false)
+        categoria.Property<string>("NomeComparacao").HasColumnName("nome_comparacao").HasMaxLength(400).IsRequired();
+        categoria.HasIndex("EmpresaId", "SetorId", "PaiId", "NomeComparacao").IsUnique().AreNullsDistinct(false)
             .HasFilter("ativa = TRUE");
 
         var fila = Base<Fila>(m, "filas");
         fila.Property(x => x.Nome).HasMaxLength(200);
-        fila.HasMany(x => x.Membros).WithOne().HasForeignKey("EmpresaId", "FilaId").OnDelete(DeleteBehavior.Restrict);
+        fila.HasAlternateKey("EmpresaId", "SetorId", "Id");
+        fila.HasMany(x => x.Membros).WithOne().HasForeignKey("EmpresaId", "SetorId", "FilaId")
+            .HasPrincipalKey("EmpresaId", "SetorId", "Id").OnDelete(DeleteBehavior.Restrict);
         fila.Navigation(x => x.Membros).HasField("_membros").UsePropertyAccessMode(PropertyAccessMode.Field);
-        fila.HasIndex("EmpresaId", "SetorId", "Nome").IsUnique().HasFilter("ativa = TRUE");
+        fila.Property<string>("NomeComparacao").HasColumnName("nome_comparacao").HasMaxLength(400).IsRequired();
+        fila.HasIndex("EmpresaId", "SetorId", "NomeComparacao").IsUnique().HasFilter("ativa = TRUE");
 
         var vinculo = Base<VinculoSetor>(m, "vinculos_setor");
         vinculo.Ignore(x => x.UsuarioId);
         vinculo.Ignore(x => x.Papeis);
         vinculo.Property<Guid>("UsuarioPersistidoId").HasColumnName("usuario_id");
+        vinculo.HasAlternateKey("EmpresaId", "SetorId", "UsuarioPersistidoId", "Id");
         vinculo.HasOne(x => x.Usuario).WithMany().HasForeignKey("EmpresaId", "UsuarioPersistidoId").OnDelete(DeleteBehavior.Restrict);
         vinculo.HasOne<Setor>().WithMany().HasForeignKey("EmpresaId", "SetorId").OnDelete(DeleteBehavior.Restrict);
         JsonPersistencia.Mapear(vinculo.Property<HashSet<PapelSetor>>("_papeis").HasColumnName("papeis"));
@@ -76,11 +85,13 @@ internal static class Mapeamentos
         membro.ToTable("membros_fila");
         membro.Property<Guid>("EmpresaId").ValueGeneratedNever();
         membro.Property<Guid>("FilaId");
+        membro.Property<Guid>("SetorId");
         membro.HasKey("EmpresaId", "FilaId", "UsuarioId");
         membro.Ignore(x => x.VinculoSetorId);
         membro.Ignore(x => x.Habilitado);
         membro.Property<Guid>("VinculoId");
-        membro.HasOne(x => x.Vinculo).WithMany().HasForeignKey("EmpresaId", "VinculoId").OnDelete(DeleteBehavior.Restrict);
+        membro.HasOne(x => x.Vinculo).WithMany().HasForeignKey("EmpresaId", "SetorId", "UsuarioId", "VinculoId")
+            .HasPrincipalKey("EmpresaId", "SetorId", "UsuarioPersistidoId", "Id").OnDelete(DeleteBehavior.Restrict);
         membro.Navigation(x => x.Vinculo).AutoInclude();
         vinculo.Navigation(x => x.Usuario).AutoInclude();
         membro.Property<uint>("xmin").IsRowVersion();
@@ -102,6 +113,15 @@ internal static class Mapeamentos
         ContextoColunas(chamado, "contexto_atual");
         chamado.Property<Guid>("SetorOrigemConsultaId").HasColumnName("setor_origem_id")
             .HasComputedColumnSql("(setor_origem_na_abertura ->> 'Id')::uuid", stored: true);
+        chamado.Property<string>("CategoriaCaminhoIds").HasColumnName("categoria_caminho_ids").HasColumnType("jsonb")
+            .HasComputedColumnSql("jsonb_path_query_array(categoria_atual, '$[*].Id')", stored: true);
+        chamado.HasIndex("CategoriaCaminhoIds").HasMethod("gin");
+        chamado.Property(x => x.Numero).UseIdentityAlwaysColumn();
+        chamado.HasIndex("EmpresaId", "Numero").IsUnique();
+        chamado.HasIndex("EmpresaId", "FilaConsultaId", "ProximoVencimentoEm", "Id")
+            .HasFilter("status IN ('AguardandoTriagem', 'Aceito', 'EmAtendimento', 'AguardandoInformacao')");
+        chamado.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "ProximoVencimentoEm", "Id");
+        chamado.HasIndex("EmpresaId", "FilaConsultaId", "AtualizadoEm", "Id");
         chamado.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "SolicitanteId").OnDelete(DeleteBehavior.Restrict);
         chamado.HasMany(x => x.Eventos).WithOne().HasForeignKey("EmpresaId", "ChamadoId").OnDelete(DeleteBehavior.Restrict);
         chamado.Navigation(x => x.Eventos).HasField("_eventos").UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -111,6 +131,7 @@ internal static class Mapeamentos
         chamado.Navigation(x => x.Ciclos).HasField("_ciclos").UsePropertyAccessMode(PropertyAccessMode.Field);
         chamado.HasIndex("EmpresaId", "FilaConsultaId", "Status", "AbertoEm", "Id")
             .HasFilter("status NOT IN ('Encerrado', 'Cancelado', 'Resolvido')");
+        chamado.HasIndex("EmpresaId", "FilaConsultaId", "AbertoEm", "Id");
         chamado.HasIndex("EmpresaId", "ResponsavelConsultaId", "Status", "AbertoEm", "Id");
         chamado.HasIndex("EmpresaId", "Status", "LimiteValidacao")
             .HasFilter("status = 'Resolvido'");
@@ -169,7 +190,20 @@ internal static class Mapeamentos
         var outbox = Base<OutboxMensagem>(m, "outbox");
         outbox.Property(x => x.Payload).HasColumnType("jsonb");
         outbox.Property(x => x.Tipo).HasMaxLength(100);
-        outbox.HasIndex("EmpresaId", "CriadaEm", "Id").HasFilter("processada_em IS NULL");
+        outbox.Property(x => x.UltimoErro).HasMaxLength(200);
+        outbox.HasIndex("EmpresaId", "DisponivelEm", "CriadaEm", "Id").HasFilter("processada_em IS NULL");
+
+        var comando = Base<ComandoExecutado>(m, "comandos_executados");
+        comando.Property(x => x.Chave).HasMaxLength(200);
+        comando.Property(x => x.Hash).HasMaxLength(64);
+        comando.HasIndex("EmpresaId", "UsuarioId", "Chave").IsUnique();
+        comando.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
+
+        evento.ToTable(t => t.HasCheckConstraint("ck_evento_sequencia", "sequencia > 0"));
+        ciclo.ToTable(t => t.HasCheckConstraint("ck_ciclo_numero", "numero > 0"));
+        periodo.ToTable(t => t.HasCheckConstraint("ck_periodo_datas", "saida IS NULL OR saida >= entrada"));
+        sla.ToTable(t => { t.HasCheckConstraint("ck_sla_meta", "meta_aplicada > 0");
+            t.HasCheckConstraint("ck_sla_datas", "finalizado_em IS NULL OR finalizado_em >= iniciado_em"); });
 
         foreach (var entidade in m.Model.GetEntityTypes())
         {
