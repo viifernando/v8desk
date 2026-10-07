@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/tests/">
+    <Project Path="tests/v8desk.domain.tests/v8desk.domain.tests.csproj" />
+  </Folder>
   <Project Path="src/v8desk.api/v8desk.api.csproj" />
   <Project Path="src/v8desk.application/v8desk.application.csproj" />
   <Project Path="src/v8desk.domain/v8desk.domain.csproj" />

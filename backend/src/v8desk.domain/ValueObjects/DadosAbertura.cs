@@ -5,7 +5,7 @@ public sealed record DadosAbertura(
     Guid SolicitanteId,
     ReferenciaHistorica SetorOrigem,
     ReferenciaHistorica Fila,
-    Guid CategoriaId,
+    Categoria Categoria,
     string Titulo,
     string Descricao,
     Prioridade Prioridade,

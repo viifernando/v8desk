@@ -5,21 +5,23 @@ public sealed class VinculoSetor
     private readonly HashSet<PapelSetor> _papeis = new();
 
     public Guid Id { get; }
-    public Guid UsuarioId { get; }
+    public Usuario Usuario { get; }
+    public Guid UsuarioId => Usuario.Id;
     public Guid SetorId { get; }
     public bool Ativo { get; private set; }
-    public IReadOnlyCollection<PapelSetor> Papeis => _papeis;
+    public IReadOnlyCollection<PapelSetor> Papeis => _papeis.ToList().AsReadOnly();
 
-    public VinculoSetor(Guid usuarioId, Guid setorId, PapelSetor papelInicial)
+    public VinculoSetor(Usuario usuario, Guid setorId, PapelSetor papelInicial)
     {
         Id = Guid.CreateVersion7();
-        UsuarioId = Guarda.Identificador(usuarioId, "o usuário do vínculo");
+        ArgumentNullException.ThrowIfNull(usuario);
+        Usuario = usuario;
         SetorId = Guarda.Identificador(setorId, "o setor do vínculo");
         _papeis.Add(Guarda.Definido(papelInicial, "o papel no setor"));
         Ativo = true;
     }
 
-    public bool PossuiPapel(PapelSetor papel) => Ativo && _papeis.Contains(papel);
+    public bool PossuiPapel(PapelSetor papel) => Ativo && Usuario.Ativo && _papeis.Contains(papel);
 
     public void ConcederPapel(PapelSetor papel)
     {

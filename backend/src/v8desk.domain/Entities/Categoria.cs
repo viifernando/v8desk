@@ -3,6 +3,46 @@ namespace v8desk.domain.Entities;
 public sealed class Categoria
 {
     private readonly List<PreQualificacao> _preQualificacoes = new();
+    private readonly List<Categoria> _filhas = new();
+    public Categoria? Pai { get; private set; }
+    public Guid? CategoriaPaiId => Pai?.Id;
+    public IReadOnlyList<Categoria> Subcategorias => _filhas.AsReadOnly();
+    public bool PermiteChamadosComSubcategorias { get; private set; } = true;
+    public bool PodeReceberChamado => Ativa && (Pai?.HierarquiaAtiva ?? true)
+        && (PermiteChamadosComSubcategorias || !_filhas.Any(c => c.Ativa));
+    private bool HierarquiaAtiva => Ativa && (Pai?.HierarquiaAtiva ?? true);
+
+    internal void DefinirPai(Categoria? pai)
+    {
+        if (pai is not null && (pai.SetorId != SetorId || !pai.HierarquiaAtiva))
+            throw new RegraNegocioException("Categoria pai deve estar ativa e pertencer ao mesmo setor.");
+        for (var atual = pai; atual is not null; atual = atual.Pai)
+            if (atual.Id == Id) throw new RegraNegocioException("A hierarquia não permite ciclos.");
+        Pai?._filhas.Remove(this);
+        Pai = pai;
+        pai?._filhas.Add(this);
+    }
+
+    internal void ConfigurarRecebimento(bool permitir) => PermiteChamadosComSubcategorias = permitir;
+
+    public void ExigirRecebimento()
+    {
+        if (!PodeReceberChamado)
+            throw new RegraNegocioException("Selecione uma categoria ativa habilitada para receber chamados.");
+    }
+
+    public CaminhoCategoria CriarReferenciaHistorica()
+    {
+        var caminho = new List<ReferenciaHistorica>();
+        for (var atual = this; atual is not null; atual = atual.Pai)
+            caminho.Add(new(atual.Id, atual.Nome));
+        caminho.Reverse();
+        return new CaminhoCategoria(caminho);
+    }
+
+    public Guid? ObterFilaDestinoHerdada() => FilaDestinoId ?? Pai?.ObterFilaDestinoHerdada();
+    public IReadOnlyList<PreQualificacao> ObterPreQualificacoesEfetivas() =>
+        _preQualificacoes.Count > 0 ? PreQualificacoes : Pai?.ObterPreQualificacoesEfetivas() ?? Array.Empty<PreQualificacao>();
 
     public Guid Id { get; }
     public Guid SetorId { get; }
@@ -39,7 +79,7 @@ public sealed class Categoria
         if (!fila.Ativa)
             throw new RegraNegocioException("A fila de destino está inativa.");
 
-        FilaDestinoId = fila.Geral ? null : fila.Id;
+        FilaDestinoId = fila.Id;
     }
 
     public void DefinirVisibilidadePadrao(Visibilidade visibilidade)
@@ -54,7 +94,7 @@ public sealed class Categoria
         if (!usuario.Ativo)
             throw new RegraNegocioException("Somente usuários ativos podem ser pré-qualificados.");
 
-        if (PreferencialPara(usuario.Id))
+        if (_preQualificacoes.Exists(p => p.UsuarioId == usuario.Id))
             throw new RegraNegocioException("O usuário já está pré-qualificado para esta categoria.");
 
         _preQualificacoes.Add(new PreQualificacao(usuario.Id, agora));
@@ -68,9 +108,9 @@ public sealed class Categoria
         _preQualificacoes.Remove(preQualificacao);
     }
 
-    public bool PreferencialPara(Guid usuarioId) => _preQualificacoes.Exists(p => p.UsuarioId == usuarioId);
+    public bool PreferencialPara(Guid usuarioId) => ObterPreQualificacoesEfetivas().Any(p => p.UsuarioId == usuarioId);
 
-    public bool PossuiPreQualificados() => _preQualificacoes.Count > 0;
+    public bool PossuiPreQualificados() => ObterPreQualificacoesEfetivas().Count > 0;
 
     public void Desativar()
     {

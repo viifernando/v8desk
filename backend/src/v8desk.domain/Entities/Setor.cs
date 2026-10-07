@@ -47,17 +47,44 @@ public sealed class Setor
         return fila;
     }
 
-    public Categoria CriarCategoria(string nome)
+    public Categoria CriarCategoria(string nome, Categoria? pai = null)
     {
         GarantirAtivo();
+        if (pai is not null) ExigirCategoriaDoSetor(pai);
         var nomeValidado = Guarda.Texto(nome, "o nome da categoria");
 
-        if (_categorias.Exists(c => c.Ativa && string.Equals(c.Nome, nomeValidado, StringComparison.OrdinalIgnoreCase)))
+        if (_categorias.Exists(c => c.Ativa && c.CategoriaPaiId == pai?.Id && string.Equals(c.Nome, nomeValidado, StringComparison.OrdinalIgnoreCase)))
             throw new RegraNegocioException("Já existe uma categoria ativa com este nome no setor.");
 
         var categoria = new Categoria(Id, nomeValidado);
+        categoria.DefinirPai(pai);
         _categorias.Add(categoria);
         return categoria;
+    }
+
+    public void MoverCategoria(Categoria categoria, Categoria? novoPai)
+    {
+        GarantirAtivo();
+        ExigirCategoriaDoSetor(categoria);
+        if (novoPai is not null) ExigirCategoriaDoSetor(novoPai);
+        if (_categorias.Any(c => c.Id != categoria.Id && c.Ativa && c.CategoriaPaiId == novoPai?.Id
+            && string.Equals(c.Nome, categoria.Nome, StringComparison.OrdinalIgnoreCase)))
+            throw new RegraNegocioException("Já existe categoria com esse nome no nível de destino.");
+        categoria.DefinirPai(novoPai);
+    }
+
+    public void ConfigurarRecebimentoCategoria(Categoria categoria, bool permitirComSubcategorias)
+    {
+        GarantirAtivo();
+        ExigirCategoriaDoSetor(categoria);
+        categoria.ConfigurarRecebimento(permitirComSubcategorias);
+    }
+
+    private void ExigirCategoriaDoSetor(Categoria categoria)
+    {
+        ArgumentNullException.ThrowIfNull(categoria);
+        if (!_categorias.Contains(categoria))
+            throw new RegraNegocioException("A categoria não pertence a este setor.");
     }
 
     public void ConfigurarSla(PoliticaSla politica)
@@ -81,10 +108,13 @@ public sealed class Setor
         if (categoria.SetorId != Id)
             throw new RegraNegocioException("A categoria informada não pertence a este setor.");
 
+        GarantirAtivo();
+        ExigirCategoriaDoSetor(categoria);
+        categoria.ExigirRecebimento();
         if (!categoria.Ativa)
             throw new RegraNegocioException("A categoria informada está inativa.");
 
-        if (categoria.FilaDestinoId is not { } destinoId)
+        if (categoria.ObterFilaDestinoHerdada() is not { } destinoId)
             return FilaGeralId;
 
         return _filas.Find(f => f.Id == destinoId) is { Ativa: true } destino ? destino.Id : FilaGeralId;

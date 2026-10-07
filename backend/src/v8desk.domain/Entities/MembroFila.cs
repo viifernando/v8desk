@@ -2,14 +2,16 @@ namespace v8desk.domain.Entities;
 
 public sealed class MembroFila
 {
-    public Guid VinculoSetorId { get; }
+    public VinculoSetor Vinculo { get; }
+    public Guid VinculoSetorId => Vinculo.Id;
+    public bool Habilitado => Vinculo.PossuiPapel(PapelSetor.Atendente);
     public Guid UsuarioId { get; }
     public bool AutorizadoParaRestritos { get; private set; }
 
-    internal MembroFila(Guid vinculoSetorId, Guid usuarioId)
+    internal MembroFila(VinculoSetor vinculo)
     {
-        VinculoSetorId = Guarda.Identificador(vinculoSetorId, "o vínculo com o setor");
-        UsuarioId = Guarda.Identificador(usuarioId, "o usuário");
+        Vinculo = vinculo;
+        UsuarioId = vinculo.UsuarioId;
     }
 
     internal void ConcederAcessoRestrito()

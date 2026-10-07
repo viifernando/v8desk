@@ -25,7 +25,8 @@ public sealed class Chamado
     public StatusChamado Status { get; private set; }
     public Prioridade Prioridade { get; private set; }
     public Visibilidade Visibilidade { get; private set; }
-    public Guid CategoriaId { get; private set; }
+    public CaminhoCategoria CategoriaAtual { get; private set; }
+    public Guid CategoriaId => CategoriaAtual.Id;
     public ContextoAtendimento ContextoAtual { get; private set; }
     public Guid SetorAtualId => ContextoAtual.Setor.Id;
     public Guid FilaAtualId => ContextoAtual.Fila.Id;
@@ -44,7 +45,7 @@ public sealed class Chamado
 
     private Chamado(Guid empresaId, Guid solicitanteId, ReferenciaHistorica setorOrigem,
         string titulo, string descricao, Prioridade prioridade, Visibilidade visibilidade,
-        Guid categoriaId, ContextoAtendimento contextoAtual, MetasSlaAplicadas metasSla,
+        CaminhoCategoria categoria, ContextoAtendimento contextoAtual, MetasSlaAplicadas metasSla,
         PoliticaCicloVida cicloVida, DateTimeOffset abertoEm)
     {
         Id = Guid.CreateVersion7();
@@ -56,7 +57,7 @@ public sealed class Chamado
         Status = StatusChamado.AguardandoTriagem;
         Prioridade = prioridade;
         Visibilidade = visibilidade;
-        CategoriaId = categoriaId;
+        CategoriaAtual = categoria;
         ContextoAtual = contextoAtual;
         MetasSla = metasSla;
         CicloVidaAplicado = cicloVida;
@@ -71,10 +72,15 @@ public sealed class Chamado
         ArgumentNullException.ThrowIfNull(configuracao);
         ArgumentNullException.ThrowIfNull(dados.SetorOrigem);
         ArgumentNullException.ThrowIfNull(dados.Fila);
+        ArgumentNullException.ThrowIfNull(dados.Categoria);
 
         var empresaId = Guarda.Identificador(dados.EmpresaId, "a empresa");
         var solicitanteId = Guarda.Identificador(dados.SolicitanteId, "o solicitante");
-        var categoriaId = Guarda.Identificador(dados.CategoriaId, "a categoria");
+        dados.Categoria.ExigirRecebimento();
+        if (dados.Categoria.SetorId != configuracao.Setor.Id)
+            throw new RegraNegocioException("A categoria deve pertencer ao setor de atendimento.");
+        var categoriaHistorica = dados.Categoria.CriarReferenciaHistorica();
+        var categoriaId = categoriaHistorica.Id;
         if (contexto.AutorId != solicitanteId)
             throw new AcessoNegadoException("Somente o próprio solicitante pode abrir o chamado.");
 
@@ -83,23 +89,23 @@ public sealed class Chamado
         var prioridade = Guarda.Definido(dados.Prioridade, "a prioridade");
         var visibilidade = Guarda.Definido(dados.Visibilidade, "a visibilidade");
         var metas = MetasSlaAplicadas.De(configuracao.PoliticaSla, configuracao.Setor.Id,
-            prioridade, configuracao.Calendario.Versao);
+            prioridade, configuracao.Calendario);
 
         var chamado = new Chamado(empresaId, solicitanteId, dados.SetorOrigem, titulo, descricao,
-            prioridade, visibilidade, categoriaId,
+            prioridade, visibilidade, categoriaHistorica,
             new ContextoAtendimento(configuracao.Setor, dados.Fila, null),
             metas, configuracao.CicloVida, contexto.Agora);
 
         var ciclo = new CicloAtendimento(1, contexto.Agora);
         chamado._ciclos.Add(ciclo);
-        ciclo.IniciarPeriodo(StatusChamado.AguardandoTriagem, chamado.ContextoAtual, contexto.Agora);
+        ciclo.IniciarPeriodo(StatusChamado.AguardandoTriagem, chamado.ContextoAtual, contexto.Agora, metas.Calendario);
         ciclo.IniciarSla(TipoSla.PrimeiraResposta, metas, contexto.Agora);
         ciclo.IniciarSla(TipoSla.Resolucao, metas, contexto.Agora);
 
         chamado.RegistrarEvento(TipoEventoChamado.Aberto, contexto.AutorId, contexto.Agora, null,
             SemDados,
             Dados(("Status", chamado.Status), ("Setor", chamado.SetorAtualId),
-                ("Fila", chamado.FilaAtualId), ("Categoria", categoriaId),
+                ("Fila", chamado.FilaAtualId), ("Categoria", categoriaId), ("CategoriaNome", categoriaHistorica.NomeNaOcorrencia), ("CategoriaCaminho", categoriaHistorica.Caminho),
                 ("Prioridade", prioridade), ("Visibilidade", visibilidade)));
 
         return chamado;
@@ -159,7 +165,9 @@ public sealed class Chamado
         ExigirChamadoAtivo();
         var motivoValido = Guarda.Texto(motivo, "o motivo");
         ExigirFilaAtual(filaAtual);
-        if (destino?.Id == ResponsavelId)
+        if (destino is null && ResponsavelId is null)
+            throw new RegraNegocioException("O chamado não possui responsável.");
+        if (destino is not null && destino.Id == ResponsavelId)
             throw new RegraNegocioException("O responsável informado já é o atual.");
         if (destino is not null)
             ExigirAtendenteHabilitado(destino, filaAtual);
@@ -258,7 +266,7 @@ public sealed class Chamado
         if (prioridade == Prioridade)
             throw new RegraNegocioException("A prioridade informada já é a atual.");
 
-        var metas = MetasSlaAplicadas.De(politica, SetorAtualId, prioridade, MetasSla.VersaoCalendario);
+        var metas = MetasSlaAplicadas.De(politica, SetorAtualId, prioridade, MetasSla.Calendario);
         var anterior = Prioridade;
 
         Prioridade = prioridade;
@@ -282,10 +290,12 @@ public sealed class Chamado
         if (categoria.Id == CategoriaId)
             throw new RegraNegocioException("A categoria informada já é a atual.");
 
-        var anterior = CategoriaId;
-        CategoriaId = categoria.Id;
+        var anterior = CategoriaAtual;
+        categoria.ExigirRecebimento();
+        CategoriaAtual = categoria.CriarReferenciaHistorica();
         RegistrarEvento(TipoEventoChamado.CategoriaAlterada, contexto.AutorId, contexto.Agora,
-            motivoValido, Dados(("Categoria", anterior)), Dados(("Categoria", CategoriaId)));
+            motivoValido, Dados(("Categoria", anterior.Id), ("CategoriaNome", anterior.NomeNaOcorrencia), ("CategoriaCaminho", anterior.Caminho)),
+            Dados(("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho)));
     }
 
     public void Transferir(Fila destino, Categoria categoriaDestino, string motivo,
@@ -311,14 +321,15 @@ public sealed class Chamado
         if (Visibilidade == Visibilidade.AcessoRestrito && !destino.TemAtendenteAutorizadoParaRestritos())
             throw new RegraNegocioException("A fila de destino não possui atendente autorizado para chamados restritos.");
 
+        categoriaDestino.ExigirRecebimento();
         var mesmoSetor = destino.SetorId == SetorAtualId;
         var novasMetas = mesmoSetor
             ? null
             : MetasSlaAplicadas.De(configuracao.PoliticaSla, destino.SetorId, Prioridade,
-                configuracao.Calendario.Versao);
+                configuracao.Calendario);
         var filaDestino = new ReferenciaHistorica(destino.Id, destino.Nome);
         var antes = Dados(("Status", Status), ("Setor", SetorAtualId), ("Fila", FilaAtualId),
-            ("Categoria", CategoriaId), ("Responsavel", ResponsavelId));
+            ("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho), ("Responsavel", ResponsavelId));
 
         if (novasMetas is null)
         {
@@ -328,7 +339,7 @@ public sealed class Chamado
                 ? StatusChamado.AguardandoTriagem
                 : Status;
 
-            CategoriaId = categoriaDestino.Id;
+            CategoriaAtual = categoriaDestino.CriarReferenciaHistorica();
             MudarEtapa(novoStatus,
                 ContextoAtual with
                 {
@@ -341,8 +352,8 @@ public sealed class Chamado
         {
             var aguardavaResposta = CicloAtual.AguardandoRespostaEquipe;
 
-            CicloAtual.InterromperSlas(contexto.Agora, MotivoFinalizacaoSla.Transferencia);
-            CategoriaId = categoriaDestino.Id;
+            CicloAtual.InterromperSlas(contexto.Agora, MotivoFinalizacaoSla.Transferencia, preservarPrimeiraResposta: true);
+            CategoriaAtual = categoriaDestino.CriarReferenciaHistorica();
             MetasSla = novasMetas;
             MudarEtapa(StatusChamado.AguardandoTriagem,
                 new ContextoAtendimento(configuracao.Setor, filaDestino, null), contexto.Agora);
@@ -354,7 +365,7 @@ public sealed class Chamado
         RegistrarEvento(TipoEventoChamado.Transferido, contexto.AutorId, contexto.Agora, motivoValido,
             antes,
             Dados(("Status", Status), ("Setor", SetorAtualId), ("Fila", FilaAtualId),
-                ("Categoria", CategoriaId), ("Responsavel", ResponsavelId)));
+                ("Categoria", CategoriaId), ("CategoriaNome", CategoriaAtual.NomeNaOcorrencia), ("CategoriaCaminho", CategoriaAtual.Caminho), ("Responsavel", ResponsavelId)));
     }
 
     public void AlterarVisibilidade(Visibilidade visibilidade, string motivo, Fila filaAtual,
@@ -435,7 +446,7 @@ public sealed class Chamado
         ExigirConfiguracaoDoSetorAtual(configuracao);
 
         var metas = MetasSlaAplicadas.De(configuracao.PoliticaSla, SetorAtualId, Prioridade,
-            configuracao.Calendario.Versao);
+            configuracao.Calendario);
         var anterior = Status;
 
         var mensagem = RegistrarMensagem(contexto.AutorId, TipoMensagem.Publica, motivoValido, contexto.Agora);
@@ -481,7 +492,7 @@ public sealed class Chamado
         var manterResponsavel = responsavelAtual is { Ativo: true, DisponivelParaAtendimento: true }
             && PodeAtenderNaFila(responsavelAtual.Id, filaAtual);
         var metas = MetasSlaAplicadas.De(configuracao.PoliticaSla, SetorAtualId, Prioridade,
-            configuracao.Calendario.Versao);
+            configuracao.Calendario);
         var antes = Dados(("Status", Status), ("Responsavel", ResponsavelId));
 
         var ciclo = new CicloAtendimento(CicloAtual.Numero + 1, contexto.Agora);
@@ -520,13 +531,12 @@ public sealed class Chamado
             Dados(("Status", anterior)), Dados(("Status", Status), ("Mensagem", mensagem.Id)));
     }
 
-    public void Avaliar(int nota, string? comentario, ContextoOperacao contexto,
-        DateTimeOffset limiteAvaliacao)
+    public void Avaliar(int nota, string? comentario, ContextoOperacao contexto)
     {
         ArgumentNullException.ThrowIfNull(contexto);
         ExigirSolicitante(contexto.AutorId);
         ExigirStatus(StatusChamado.Encerrado);
-        if (contexto.Agora > limiteAvaliacao)
+        if (CicloAtual.LimiteAvaliacao is not { } limite || contexto.Agora > limite)
             throw new RegraNegocioException("O prazo para avaliação expirou.");
 
         var avaliacao = new Avaliacao(nota, comentario, SolicitanteId, contexto.Agora);
@@ -570,7 +580,7 @@ public sealed class Chamado
     {
         var anterior = Status;
         MudarEtapa(StatusChamado.Encerrado, ContextoAtual, agora);
-        CicloAtual.Encerrar(agora, motivo);
+        CicloAtual.Encerrar(agora, motivo, CicloVidaAplicado.PrazoAvaliacao);
         LembreteValidacaoEm = null;
         LimiteReabertura = agora + CicloVidaAplicado.PrazoReabertura;
         RegistrarEvento(tipo, autorId, agora, null,
@@ -590,7 +600,7 @@ public sealed class Chamado
         if (status is StatusChamado.Encerrado or StatusChamado.Cancelado)
             CicloAtual.FinalizarPeriodo(agora);
         else
-            CicloAtual.IniciarPeriodo(status, contextoAtendimento, agora);
+            CicloAtual.IniciarPeriodo(status, contextoAtendimento, agora, MetasSla.Calendario);
     }
 
     private Mensagem RegistrarMensagem(Guid autorId, TipoMensagem tipo, string texto,

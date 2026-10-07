@@ -13,6 +13,7 @@ public sealed class CicloAtendimento
     public MotivoEncerramento? MotivoDeEncerramento { get; private set; }
     public Solucao? Solucao { get; private set; }
     public Avaliacao? Avaliacao { get; private set; }
+    public DateTimeOffset? LimiteAvaliacao { get; private set; }
     public IReadOnlyList<PeriodoEtapa> Periodos => _periodos.AsReadOnly();
     public IReadOnlyList<CicloSla> CiclosSla => _ciclosSla.AsReadOnly();
     public IReadOnlyList<SolucaoRejeitada> SolucoesRejeitadas => _solucoesRejeitadas.AsReadOnly();
@@ -33,11 +34,11 @@ public sealed class CicloAtendimento
     public CicloSla? SlaAtivo(TipoSla tipo) =>
         _ciclosSla.FirstOrDefault(s => s.Tipo == tipo && s.Ativo);
 
-    internal void IniciarPeriodo(StatusChamado status, ContextoAtendimento contexto, DateTimeOffset agora)
+    internal void IniciarPeriodo(StatusChamado status, ContextoAtendimento contexto, DateTimeOffset agora, CalendarioEmpresa calendario)
     {
         ExigirAberto();
         FinalizarPeriodo(agora);
-        _periodos.Add(new PeriodoEtapa(status, contexto, agora));
+        _periodos.Add(new PeriodoEtapa(status, contexto, agora, calendario));
     }
 
     internal void FinalizarPeriodo(DateTimeOffset agora) => PeriodoAtual?.Finalizar(agora);
@@ -50,7 +51,7 @@ public sealed class CicloAtendimento
             throw new RegraNegocioException($"Já existe SLA de {tipo} em andamento.");
 
         _ciclosSla.Add(new CicloSla(tipo, metas.SetorId, agora, metas.Obter(tipo),
-            metas.VersaoPolitica, metas.VersaoCalendario));
+            metas.VersaoPolitica, metas.Calendario));
     }
 
     internal void IniciarProximaRespostaSeNecessario(MetasSlaAplicadas metas, DateTimeOffset agora)
@@ -74,16 +75,16 @@ public sealed class CicloAtendimento
     internal void FinalizarResolucao(DateTimeOffset agora, MotivoFinalizacaoSla motivo) =>
         ObterResolucaoAtiva().Finalizar(agora, motivo);
 
-    internal void InterromperSlas(DateTimeOffset agora, MotivoFinalizacaoSla motivo)
+    internal void InterromperSlas(DateTimeOffset agora, MotivoFinalizacaoSla motivo, bool preservarPrimeiraResposta = false)
     {
-        foreach (var sla in Ativos().ToList())
+        foreach (var sla in Ativos().Where(s => !preservarPrimeiraResposta || s.Tipo != TipoSla.PrimeiraResposta).ToList())
             sla.Finalizar(agora, motivo);
     }
 
     internal void AplicarMetas(MetasSlaAplicadas metas, DateTimeOffset agora)
     {
         ArgumentNullException.ThrowIfNull(metas);
-        foreach (var sla in Ativos())
+        foreach (var sla in Ativos().Where(s => s.SetorId == metas.SetorId))
             sla.AlterarMeta(metas.Obter(sla.Tipo), agora);
     }
 
@@ -107,12 +108,13 @@ public sealed class CicloAtendimento
         Solucao = null;
     }
 
-    internal void Encerrar(DateTimeOffset agora, MotivoEncerramento motivo)
+    internal void Encerrar(DateTimeOffset agora, MotivoEncerramento motivo, TimeSpan? prazoAvaliacao = null)
     {
         ExigirAberto();
         FinalizarPeriodo(agora);
         EncerradoEm = agora;
         MotivoDeEncerramento = motivo;
+        LimiteAvaliacao = prazoAvaliacao is { } prazo ? agora + prazo : null;
     }
 
     internal void RegistrarAvaliacao(Avaliacao avaliacao)
@@ -120,6 +122,8 @@ public sealed class CicloAtendimento
         ArgumentNullException.ThrowIfNull(avaliacao);
         if (MotivoDeEncerramento is not (MotivoEncerramento.ConfirmacaoSolicitante or MotivoEncerramento.PrazoExpirado))
             throw new RegraNegocioException("Somente ciclos encerrados podem ser avaliados.");
+        if (LimiteAvaliacao is not { } limite || avaliacao.CriadaEm > limite)
+            throw new RegraNegocioException("O prazo para avaliação expirou.");
         if (Avaliacao is not null)
             throw new RegraNegocioException("O ciclo já foi avaliado.");
 

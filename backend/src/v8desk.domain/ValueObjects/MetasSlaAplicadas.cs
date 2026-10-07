@@ -4,13 +4,14 @@ public sealed record MetasSlaAplicadas(
     Guid SetorId,
     Prioridade Prioridade,
     long VersaoPolitica,
-    long VersaoCalendario,
+    CalendarioEmpresa Calendario,
     HorasUteis PrimeiraResposta,
     HorasUteis ProximaResposta,
     HorasUteis Resolucao)
 {
+    public long VersaoCalendario => Calendario.Versao;
     public static MetasSlaAplicadas De(PoliticaSla politica, Guid setorId,
-        Prioridade prioridade, long versaoCalendario)
+        Prioridade prioridade, CalendarioEmpresa calendario)
     {
         ArgumentNullException.ThrowIfNull(politica);
 
@@ -18,7 +19,7 @@ public sealed record MetasSlaAplicadas(
             setorId,
             prioridade,
             politica.Versao,
-            versaoCalendario,
+            calendario.CriarSnapshot(),
             politica.ObterMeta(prioridade, TipoSla.PrimeiraResposta).Prazo,
             politica.ObterMeta(prioridade, TipoSla.ProximaResposta).Prazo,
             politica.ObterMeta(prioridade, TipoSla.Resolucao).Prazo);

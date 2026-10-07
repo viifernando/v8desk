@@ -13,13 +13,14 @@ public sealed class CicloSla
     public MotivoFinalizacaoSla? MotivoFinalizacao { get; private set; }
     public HorasUteis MetaAplicada { get; private set; }
     public long VersaoPoliticaAplicada { get; }
-    public long VersaoCalendarioAplicada { get; }
+    public long VersaoCalendarioAplicada => CalendarioAplicado.Versao;
+    public CalendarioEmpresa CalendarioAplicado { get; }
     public IReadOnlyList<PausaSla> Pausas => _pausas.AsReadOnly();
     public IReadOnlyList<RevisaoMetaSla> RevisoesMeta => _revisoesMeta.AsReadOnly();
     public bool Ativo => FinalizadoEm is null;
     public bool Pausado => _pausas.Count > 0 && _pausas[^1].Fim is null;
 
-    internal CicloSla(TipoSla tipo, Guid setorId, DateTimeOffset iniciadoEm, HorasUteis meta, long versaoPolitica, long versaoCalendario)
+    internal CicloSla(TipoSla tipo, Guid setorId, DateTimeOffset iniciadoEm, HorasUteis meta, long versaoPolitica, CalendarioEmpresa calendario)
     {
         ArgumentNullException.ThrowIfNull(meta);
 
@@ -28,7 +29,7 @@ public sealed class CicloSla
         IniciadoEm = iniciadoEm;
         MetaAplicada = meta;
         VersaoPoliticaAplicada = versaoPolitica;
-        VersaoCalendarioAplicada = versaoCalendario;
+        CalendarioAplicado = calendario.CriarSnapshot();
     }
 
     internal void Pausar(DateTimeOffset agora, string motivo)
@@ -87,10 +88,9 @@ public sealed class CicloSla
         MetaAplicada = novaMeta;
     }
 
-    public TimeSpan CalcularConsumido(DateTimeOffset agora, CalendarioEmpresa calendario)
+    public TimeSpan CalcularConsumido(DateTimeOffset agora)
     {
-        ArgumentNullException.ThrowIfNull(calendario);
-
+        var calendario = CalendarioAplicado;
         var fim = FinalizadoEm ?? agora;
 
         if (fim <= IniciadoEm)
@@ -107,13 +107,13 @@ public sealed class CicloSla
         return consumido > TimeSpan.Zero ? consumido : TimeSpan.Zero;
     }
 
-    public decimal CalcularPercentualConsumido(DateTimeOffset agora, CalendarioEmpresa calendario) =>
-        (decimal)CalcularConsumido(agora, calendario).TotalHours / MetaAplicada.Valor * 100;
+    public decimal CalcularPercentualConsumido(DateTimeOffset agora) =>
+        (decimal)CalcularConsumido(agora).TotalHours / MetaAplicada.Valor * 100;
 
-    public bool EstaVencido(DateTimeOffset agora, CalendarioEmpresa calendario) =>
-        CalcularConsumido(agora, calendario) > MetaAplicada.ParaTimeSpan();
+    public bool EstaVencido(DateTimeOffset agora) =>
+        CalcularConsumido(agora) > MetaAplicada.ParaTimeSpan();
 
-    public SituacaoSla ObterSituacao(DateTimeOffset agora, CalendarioEmpresa calendario)
+    public SituacaoSla ObterSituacao(DateTimeOffset agora)
     {
         if (Ativo)
             return SituacaoSla.EmAndamento;
@@ -121,7 +121,7 @@ public sealed class CicloSla
         if (MotivoFinalizacao is MotivoFinalizacaoSla.Transferencia or MotivoFinalizacaoSla.Cancelado)
             return SituacaoSla.Interrompido;
 
-        return EstaVencido(agora, calendario) ? SituacaoSla.Vencido : SituacaoSla.Cumprido;
+        return EstaVencido(agora) ? SituacaoSla.Vencido : SituacaoSla.Cumprido;
     }
 
     private void GarantirAtivo()

@@ -42,7 +42,7 @@ public sealed class Fila
         if (BuscarMembro(vinculo.UsuarioId) is not null)
             throw new RegraNegocioException("O usuário já é membro desta fila.");
 
-        _membros.Add(new MembroFila(vinculo.Id, vinculo.UsuarioId));
+        _membros.Add(new MembroFila(vinculo));
     }
 
     public void RemoverMembro(Guid usuarioId)
@@ -65,7 +65,7 @@ public sealed class Fila
         ObterMembro(usuarioId).RevogarAcessoRestrito();
     }
 
-    public bool PodeAtender(Guid usuarioId) => Ativa && BuscarMembro(usuarioId) is not null;
+    public bool PodeAtender(Guid usuarioId) => Ativa && BuscarMembro(usuarioId) is { Habilitado: true };
 
     public bool PodeAcessarRestrito(Guid usuarioId) =>
         Ativa && BuscarMembro(usuarioId) is { } membro && AcessaRestrito(membro);
@@ -86,7 +86,7 @@ public sealed class Fila
     }
 
     private bool AcessaRestrito(MembroFila membro) =>
-        RegraAcessoRestrito == AcessoRestritoFila.TodosOsIntegrantes || membro.AutorizadoParaRestritos;
+        membro.Habilitado && (RegraAcessoRestrito == AcessoRestritoFila.TodosOsIntegrantes || membro.AutorizadoParaRestritos);
 
     private MembroFila? BuscarMembro(Guid usuarioId) => _membros.Find(m => m.UsuarioId == usuarioId);
 

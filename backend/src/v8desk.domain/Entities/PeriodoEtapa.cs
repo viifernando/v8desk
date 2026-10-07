@@ -4,12 +4,13 @@ public sealed class PeriodoEtapa
 {
     public Guid Id { get; }
     public StatusChamado Status { get; }
+    public CalendarioEmpresa CalendarioAplicado { get; }
     public ContextoAtendimento Contexto { get; }
     public DateTimeOffset Entrada { get; }
     public DateTimeOffset? Saida { get; private set; }
     public bool Aberto => Saida is null;
 
-    internal PeriodoEtapa(StatusChamado status, ContextoAtendimento contexto, DateTimeOffset entrada)
+    internal PeriodoEtapa(StatusChamado status, ContextoAtendimento contexto, DateTimeOffset entrada, CalendarioEmpresa calendario)
     {
         ArgumentNullException.ThrowIfNull(contexto);
 
@@ -17,6 +18,7 @@ public sealed class PeriodoEtapa
         Status = status;
         Contexto = contexto;
         Entrada = entrada;
+        CalendarioAplicado = calendario.CriarSnapshot();
     }
 
     internal void Finalizar(DateTimeOffset agora)
@@ -35,9 +37,8 @@ public sealed class PeriodoEtapa
         return fim > Entrada ? fim - Entrada : TimeSpan.Zero;
     }
 
-    public TimeSpan TempoUtil(DateTimeOffset agora, CalendarioEmpresa calendario)
+    public TimeSpan TempoUtil(DateTimeOffset agora)
     {
-        ArgumentNullException.ThrowIfNull(calendario);
-        return calendario.CalcularTempoUtil(Entrada, Saida ?? agora);
+        return CalendarioAplicado.CalcularTempoUtil(Entrada, Saida ?? agora);
     }
 }
