@@ -11,6 +11,30 @@ namespace v8desk.domain.tests;
 
 public static class PaginacaoTests
 {
+    public static void ProntuarioTemConsultasLimitadasENotasFiltradasNoSql()
+    {
+        using var db = new V8DeskDbContext(new DbContextOptionsBuilder<V8DeskDbContext>()
+            .UseNpgsql("Host=localhost;Database=modelo_apenas;Username=modelo;Password=nao_utilizada").Options,
+            new EmpresaTeste(Guid.NewGuid()));
+        var consultas = new ProntuarioConsultas(db, new AcessoRepository(db), new UsuarioTeste(Guid.NewGuid()));
+        var id = Guid.NewGuid();
+        var detalhe = consultas.ConsultarDetalhe(id).ToQueryString();
+        Assert.True(detalhe.Contains("empresa_id"));
+        Assert.False(detalhe.Contains("JOIN"));
+        var publico = consultas.ConsultarMensagens(id, false, null, 25).ToQueryString();
+        Assert.True(publico.Contains("Publica"));
+        Assert.True(publico.Contains("LIMIT"));
+        Assert.True(publico.Contains("empresa_id"));
+        Assert.False(consultas.ConsultarMensagens(id, true, null, 25).ToQueryString().Contains("'Publica'"));
+        Assert.True(consultas.ConsultarMensagens(id, false, new(id, DateTimeOffset.UtcNow, Guid.NewGuid()), 25)
+            .ToQueryString().Contains("criada_em"));
+        var eventos = consultas.ConsultarEventos(id, false, 10, 25).ToQueryString();
+        Assert.True(eventos.Contains("NotaInternaAdicionada"));
+        Assert.True(eventos.Contains("MensagemCorrigida"));
+        Assert.True(eventos.Contains("LIMIT"));
+        Assert.False(eventos.Contains("motivo"));
+        Assert.False(eventos.Contains("antes"));
+    }
     public static void TodasAsOrdensGeramSqlComCursorEFiltros()
     {
         using var db = new V8DeskDbContext(new DbContextOptionsBuilder<V8DeskDbContext>()

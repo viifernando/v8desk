@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IAcessoRepository, AcessoRepository>();
         services.AddScoped<IUnidadeTrabalho>(sp => sp.GetRequiredService<V8DeskDbContext>());
         services.AddScoped<ChamadoConsultas>();
+        services.AddScoped<v8desk.application.Chamados.IProntuarioConsultas, ProntuarioConsultas>();
         services.AddScoped<v8desk.application.Chamados.IChamadoConsultas>(sp => sp.GetRequiredService<ChamadoConsultas>());
         services.AddScoped<IExecutorComandoIdempotente, ExecutorComandoIdempotente>();
         return services;

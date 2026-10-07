@@ -23,7 +23,7 @@ public sealed class AutorizacaoChamado(Guid empresaId, DadosAcesso dados) : IAut
              ? PodeAtender(chamado)
              : PossuiVinculo(chamado.SetorOrigemId) || PodeAtender(chamado)));
 
-    private bool PodeAtender(ReferenciaAcessoChamado chamado) => Ativo && chamado.EmpresaId == empresaId &&
+    public bool PodeAtender(ReferenciaAcessoChamado chamado) => Ativo && chamado.EmpresaId == empresaId &&
         SetorAtivo(chamado.SetorAtualId) && dados.Filas.Any(f => f.Id == chamado.FilaAtualId &&
             f.SetorId == chamado.SetorAtualId && f.EmpresaId == empresaId && f.PodeAtender(Usuario.Id) &&
             (chamado.Visibilidade != Visibilidade.AcessoRestrito || f.PodeAcessarRestrito(Usuario.Id)));

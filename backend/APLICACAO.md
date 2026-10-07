@@ -20,7 +20,8 @@ flowchart LR
 - `ConfiguracaoEmpresaAplicacao`: nome da empresa, criação de setores e usuários, administração de usuários, limite de setores por atendente, ciclo de vida padrão, fuso, expediente, feriados e exceções de calendário.
 - `UsuarioAplicacao`: o próprio usuário altera sua disponibilidade, sem exigir administração da empresa e sem receber um ID de outro usuário.
 - `EncerramentoAutomaticoAplicacao`: o worker encerra chamados cujo prazo de validação expirou. Não é um comando público do solicitante/atendente; o host deve executar em um escopo de empresa próprio. A repetição não gera outro evento.
-- `IChamadoConsultas`: filtros, paginação e DTOs para listagens. A implementação SQL permanece na infraestrutura. Consultas de prontuário paginado, relatórios de métricas e os endpoints serão etapas posteriores.
+- `IChamadoConsultas`: filtros, paginação e DTOs para listagens. A implementação SQL permanece na infraestrutura.
+- `IProntuarioConsultas`: detalhe projetado, mensagens e cabeçalhos de eventos paginados; autorização em snapshot e proteção de notas internas na infraestrutura. Os endpoints HTTP estão documentados em `API.md`. Relatórios de métricas continuam pendentes.
 
 As classes de comando usam IDs e dados de entrada; empresa, autor, horário e permissões vêm do servidor. Cada operação usa um escopo novo. Os métodos do domínio continuam decidindo transições, pausas e metas SLA, prazos de calendário, autoria, hierarquia e avaliação.
 
@@ -72,4 +73,4 @@ Execute a suíte a partir da raiz do repositório:
 dotnet run --project backend/tests/v8desk.domain.tests
 ```
 
-Não foram criados endpoints nem autenticação JWT/OIDC nesta etapa. A integração PostgreSQL permanece opt-in, sem iniciar Docker. Armazenamento e associação de arquivos dependem do serviço de anexos ainda pendente; a Application não aceita chaves arbitrárias de armazenamento enviadas pelo cliente. Transporte e agendamento de notificações permanecem responsabilidade do host.
+A API agora expõe esses casos de uso e valida tokens JWT de um provedor externo configurado; emissão de tokens e provisionamento de identidade permanecem fora desta etapa. A integração PostgreSQL permanece opt-in, sem iniciar Docker. Armazenamento e associação de arquivos dependem do serviço de anexos ainda pendente; a Application não aceita chaves arbitrárias de armazenamento enviadas pelo cliente. Transporte e agendamento de notificações permanecem responsabilidade do host.

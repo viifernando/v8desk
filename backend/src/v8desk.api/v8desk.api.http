@@ -1,6 +1,58 @@
-@v8desk.api_HostAddress = http://localhost:5120
+@host = https://localhost:7294
+@token = substitua-pelo-token-do-provedor
+@filaId = substitua-pelo-id-da-fila
+@chamadoId = substitua-pelo-id-do-chamado
+@setorOrigemId = substitua-pelo-id-do-setor-de-origem
+@setorResponsavelId = substitua-pelo-id-do-setor-responsavel
+@categoriaId = substitua-pelo-id-da-categoria
 
-GET {{v8desk.api_HostAddress}}/weatherforecast/
+GET {{host}}/health/live
 Accept: application/json
 
 ###
+GET {{host}}/health/ready
+
+###
+GET {{host}}/api/v1/chamados?filaId={{filaId}}&tamanho=25&ordem=PrazoMaisProximo
+Authorization: Bearer {{token}}
+
+###
+POST {{host}}/api/v1/chamados
+Authorization: Bearer {{token}}
+Idempotency-Key: abertura-exemplo-001
+Content-Type: application/json
+
+{
+  "setorOrigemId": "{{setorOrigemId}}",
+  "setorResponsavelId": "{{setorResponsavelId}}",
+  "categoriaId": "{{categoriaId}}",
+  "titulo": "Preciso de acesso ao sistema",
+  "descricao": "Descreva o acesso necessário e o motivo.",
+  "prioridade": "Media",
+  "visibilidade": "CompartilhadoComSetor"
+}
+
+###
+GET {{host}}/api/v1/chamados/{{chamadoId}}
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/v1/chamados/{{chamadoId}}/mensagens?tamanho=25
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/v1/chamados/{{chamadoId}}/historico?depois=0&tamanho=25
+Authorization: Bearer {{token}}
+
+###
+POST {{host}}/api/v1/chamados/{{chamadoId}}/assumir
+Authorization: Bearer {{token}}
+Idempotency-Key: assumir-exemplo-001
+
+###
+POST {{host}}/api/v1/chamados/{{chamadoId}}/respostas/solicitante
+Authorization: Bearer {{token}}
+Idempotency-Key: resposta-exemplo-001
+Content-Type: application/json
+
+{ "texto": "Seguem os detalhes solicitados." }

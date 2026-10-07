@@ -182,7 +182,24 @@ public static class PostgresIntegracaoTests
             var resultado = await configuracao.ExecutarAsync(new CriarFila(setor.Id, "Via Application"), "app-fila");
             Assert.True(await db.Filas.AnyAsync(f => f.Id == resultado.RegistroId));
         }
-        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência, outbox e Application.");
+        await using (var db = Contexto())
+            await Aplicacao(db, usuario.Id).ExecutarAsync(new AdicionarNotaInterna(chamadoAplicacao, "Nota privada"), "app-nota");
+        await using (var db = Contexto())
+        {
+            var leitura = new ProntuarioConsultas(db, new AcessoRepository(db), new Identidade(colega.Id));
+            Assert.Equal(chamadoAplicacao, (await leitura.ObterAsync(chamadoAplicacao)).Id);
+            var mensagens = await leitura.MensagensAsync(chamadoAplicacao, null, 1);
+            Assert.True(mensagens.ProximoCursor is not null);
+            Assert.True(mensagens.Itens.All(m => m.Tipo == TipoMensagem.Publica));
+            Assert.True((await leitura.MensagensAsync(chamadoAplicacao, mensagens.ProximoCursor, 100)).Itens.All(m => m.Tipo == TipoMensagem.Publica));
+            Assert.True((await leitura.EventosAsync(chamadoAplicacao, 0, 100)).Itens.All(e => e.Tipo != TipoEventoChamado.NotaInternaAdicionada));
+        }
+        await using (var db = Contexto())
+        {
+            var leitura = new ProntuarioConsultas(db, new AcessoRepository(db), new Identidade(usuario.Id));
+            Assert.True((await leitura.MensagensAsync(chamadoAplicacao, null, 100)).Itens.Any(m => m.Tipo == TipoMensagem.NotaInterna));
+        }
+        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência, outbox, Application e prontuário.");
     }
 
     private static async Task ExigirFalhaAsync<T>(Func<Task> executar) where T : Exception

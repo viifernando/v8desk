@@ -189,7 +189,7 @@ public static class AplicacaoTests
         Assert.Equal(1, f.Chamados[id].Mensagens.Count);
     }
 
-    private sealed class Cenario : IEmpresaAtual, IUsuarioAtual, IChamadoRepository, IConfiguracaoRepository, IAcessoRepository, IExecutorComandoIdempotente, IUnidadeTrabalho, IAutorizacaoEmpresa
+    internal sealed class Cenario : IEmpresaAtual, IUsuarioAtual, IChamadoRepository, IConfiguracaoRepository, IAcessoRepository, IExecutorComandoIdempotente, IUnidadeTrabalho, IAutorizacaoEmpresa
     {
         public Empresa Empresa { get; } = new("Empresa", new("UTC"));
         public Guid EmpresaId => Empresa.Id;
@@ -272,7 +272,7 @@ public static class AplicacaoTests
             return resultado;
         }
     }
-    private sealed class Relogio : TimeProvider
+    internal sealed class Relogio : TimeProvider
     {
         public DateTimeOffset Agora { get; set; } = new(2026, 10, 7, 8, 0, 0, TimeSpan.Zero);
         public override DateTimeOffset GetUtcNow() => Agora;

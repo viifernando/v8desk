@@ -3,6 +3,11 @@ using v8desk.domain.tests;
 var suite = new RegressoesDominioTests();
 var casos = new (string Nome, Action Executar)[]
 {
+    ("API HTTP: autenticação, validação e idempotência", ApiHttpTests.AutenticacaoValidacaoEIdempotencia),
+    ("API HTTP: limites e indisponibilidade", ApiHttpTests.LimitesEIndisponibilidade),
+    ("API HTTP: prazo e cancelamento", ApiHttpTests.PrazoCancelaConsultaSemExporDetalhes),
+    ("API HTTP: validação real de JWT", ApiHttpTests.JwtValidaAssinaturaEmissorPublicoPrazoEEmpresa),
+    ("Prontuário: SQL limitado e notas protegidas", PaginacaoTests.ProntuarioTemConsultasLimitadasENotasFiltradasNoSql),
     ("Application: fluxo completo e reabertura", AplicacaoTests.FluxoCompletoEscolheFilaDaCategoriaERetornaResponsavelNaReabertura),
     ("Application: composição sem banco", AplicacaoTests.ComposicaoResolveCasosDeUsoSemAbrirConexao),
     ("Application: disponibilidade pessoal", AplicacaoTests.DisponibilidadePessoalNaoExigeAdministracaoENaoAceitaUsuarioInativo),
