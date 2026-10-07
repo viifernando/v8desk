@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/v8desk.api/v8desk.api.csproj" />
+  <Project Path="src/v8desk.application/v8desk.application.csproj" />
+  <Project Path="src/v8desk.domain/v8desk.domain.csproj" />
+  <Project Path="src/v8desk.infrastructure/v8desk.infrastructure.csproj" />
+</Solution>
