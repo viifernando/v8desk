@@ -5,6 +5,7 @@ using v8desk.api.Errors;
 using v8desk.api.Resilience;
 using v8desk.api.Security;
 using v8desk.api.Tenancy;
+using v8desk.api.Integracoes;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 128 * 1024);
@@ -17,10 +18,13 @@ builder.Services.AdicionarLimitesApi(builder.Configuration);
 var proxyConfigurado = builder.Services.AdicionarProxyConfiavel(builder.Configuration);
 var conexao = builder.Configuration.GetConnectionString("V8Desk");
 var persistenciaConfigurada = !string.IsNullOrWhiteSpace(conexao);
+if (!persistenciaConfigurada && builder.Configuration.GetValue("Authentication:EntraEnabled", false))
+    throw new InvalidOperationException("Configure ConnectionStrings:V8Desk para habilitar a autenticação Microsoft.");
 if (persistenciaConfigurada)
 {
     v8desk.application.DependencyInjection.AdicionarAplicacao(builder.Services);
     v8desk.infrastructure.DependencyInjection.AdicionarInfraestrutura(builder.Services, conexao!);
+    builder.Services.AdicionarIntegracoesApi(builder.Configuration, builder.Environment.IsDevelopment());
 }
 else if (!builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Configure ConnectionStrings:V8Desk antes de iniciar o servidor.");

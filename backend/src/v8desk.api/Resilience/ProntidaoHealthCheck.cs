@@ -8,8 +8,8 @@ public sealed class ProntidaoHealthCheck(IConfiguration config) : IHealthCheck
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)
     {
         var conexao = config.GetConnectionString("V8Desk");
-        if (string.IsNullOrWhiteSpace(conexao) || string.IsNullOrWhiteSpace(config["Authentication:Authority"])
-            || string.IsNullOrWhiteSpace(config["Authentication:Audience"]))
+        if (string.IsNullOrWhiteSpace(conexao) || !config.GetValue("Authentication:EntraEnabled", false) &&
+            (string.IsNullOrWhiteSpace(config["Authentication:Authority"]) || string.IsNullOrWhiteSpace(config["Authentication:Audience"])))
             return HealthCheckResult.Unhealthy();
         try
         {

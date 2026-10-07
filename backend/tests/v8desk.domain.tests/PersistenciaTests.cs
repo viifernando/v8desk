@@ -28,6 +28,11 @@ public static class PersistenciaTests
         Assert.True(sql.Contains("ck_periodo_datas"));
         Assert.True(sql.Contains("nome_comparacao"));
         Assert.True(sql.Contains("comandos_executados"));
+        Assert.True(sql.Contains("integracoes_empresa"));
+        Assert.True(sql.Contains("vinculos_microsoft"));
+        Assert.True(sql.Contains("entregas_email"));
+        Assert.True(modelo.FindEntityType(typeof(IntegracoesEmpresa))!.GetIndexes()
+            .Any(i => i.IsUnique && i.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantMicrosoftId", "ApiMicrosoftId" })));
         var categoria = modelo.FindEntityType(typeof(Categoria))!;
         Assert.True(categoria.GetForeignKeys().Where(f => f.PrincipalEntityType.ClrType is var t &&
             (t == typeof(Categoria) || t == typeof(Fila))).All(f => f.Properties.Any(p => p.Name == "SetorId")));
@@ -59,6 +64,9 @@ public static class PersistenciaTests
         var externa = new Empresa("Outra empresa", new("UTC"));
         outro.Setores.Add(externa.CriarSetor("TI"));
         Assert.Throws<AcessoNegadoException>(() => outro.SaveChanges());
+        using var integracoes = Criar(Guid.NewGuid());
+        integracoes.Add(new IntegracoesEmpresa(Guid.NewGuid()));
+        Assert.Throws<AcessoNegadoException>(() => integracoes.SaveChanges());
     }
 
     public static void SnapshotsJsonPreservamCalendarioAnexosECaminho()

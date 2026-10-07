@@ -5,6 +5,12 @@
 @setorOrigemId = substitua-pelo-id-do-setor-de-origem
 @setorResponsavelId = substitua-pelo-id-do-setor-responsavel
 @categoriaId = substitua-pelo-id-da-categoria
+@usuarioId = substitua-pelo-id-do-usuario
+@empresaId = substitua-pelo-id-da-empresa
+@tenantMicrosoftId = substitua-pelo-id-do-tenant-microsoft
+@apiMicrosoftId = substitua-pelo-client-id-da-api
+@loginMicrosoftId = substitua-pelo-client-id-do-login
+@objetoMicrosoftId = substitua-pelo-object-id-do-usuario
 
 GET {{host}}/health/live
 Accept: application/json
@@ -56,3 +62,84 @@ Idempotency-Key: resposta-exemplo-001
 Content-Type: application/json
 
 { "texto": "Seguem os detalhes solicitados." }
+
+### Integrações: exige administrador_empresa. Ver INTEGRACOES.md.
+GET {{host}}/api/v1/integracoes
+Authorization: Bearer {{token}}
+
+### Cadastrar contato do administrador antes do teste
+POST {{host}}/api/v1/integracoes/usuarios/{{usuarioId}}/email
+Authorization: Bearer {{token}}
+Idempotency-Key: contato-email-001
+Content-Type: application/json
+
+{ "email": "administrador@example.com" }
+
+### SMTP: host precisa estar permitido na configuração do servidor
+POST {{host}}/api/v1/integracoes/email
+Authorization: Bearer {{token}}
+Idempotency-Key: configurar-email-001
+Content-Type: application/json
+
+{
+  "provedor": "Smtp",
+  "remetente": "v8desk@example.com",
+  "nomeRemetente": "V8Desk",
+  "hostSmtp": "smtp.example.com",
+  "portaSmtp": 587,
+  "segurancaSmtp": "StartTls",
+  "usuarioSmtp": "v8desk@example.com",
+  "segredo": "SUBSTITUA-LOCALMENTE-NAO-COMMITAR"
+}
+
+### Diagnóstico não envia e-mail
+POST {{host}}/api/v1/integracoes/email/diagnostico
+Authorization: Bearer {{token}}
+
+### Teste agendado: exige WorkerEnabled para processar
+POST {{host}}/api/v1/integracoes/email/testar
+Authorization: Bearer {{token}}
+Idempotency-Key: testar-email-001
+
+### Consultar até AceitaPeloProvedor
+GET {{host}}/api/v1/integracoes/email/entregas?tamanho=25
+Authorization: Bearer {{token}}
+
+### Ativar somente depois do teste aceito da revisão atual
+POST {{host}}/api/v1/integracoes/email/ativacao
+Authorization: Bearer {{token}}
+Idempotency-Key: ativar-email-001
+Content-Type: application/json
+
+{ "ativo": true }
+
+### Configuração Microsoft: separada da configuração Graph de envio
+POST {{host}}/api/v1/integracoes/microsoft
+Authorization: Bearer {{token}}
+Idempotency-Key: configurar-microsoft-001
+Content-Type: application/json
+
+{
+  "tenantId": "{{tenantMicrosoftId}}",
+  "apiClienteId": "{{apiMicrosoftId}}",
+  "clienteLoginId": "{{loginMicrosoftId}}"
+}
+
+### Vínculo explícito de conta; privilégios vêm deste cadastro interno
+POST {{host}}/api/v1/integracoes/usuarios/{{usuarioId}}/microsoft
+Authorization: Bearer {{token}}
+Idempotency-Key: vincular-microsoft-001
+Content-Type: application/json
+
+{ "objetoId": "{{objetoMicrosoftId}}", "administrador": false }
+
+### Ativar login Microsoft
+POST {{host}}/api/v1/integracoes/microsoft/ativacao
+Authorization: Bearer {{token}}
+Idempotency-Key: ativar-microsoft-001
+Content-Type: application/json
+
+{ "ativo": true }
+
+### Descoberta pública para o futuro cliente de login
+GET {{host}}/api/v1/acesso/microsoft/{{empresaId}}

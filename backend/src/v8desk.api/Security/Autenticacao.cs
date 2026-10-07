@@ -18,7 +18,8 @@ public static class Autenticacao
             throw new InvalidOperationException("Configure Authentication:Authority e Authentication:Audience juntos.");
         if (configurada && (!Uri.TryCreate(authority, UriKind.Absolute, out var uri) || uri.Scheme != "https"))
             throw new InvalidOperationException("Authentication:Authority deve ser um endereço HTTPS.");
-        if (!configurada && !desenvolvimento)
+        var entra = config.GetValue("Authentication:EntraEnabled", false);
+        if (!configurada && !desenvolvimento && !entra)
             throw new InvalidOperationException("Configure o provedor JWT em Authentication:Authority e Authentication:Audience.");
         if (configurada)
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
@@ -50,6 +51,31 @@ public static class Autenticacao
             });
         else
             services.AddAuthentication("sem-provedor").AddScheme<AuthenticationSchemeOptions, SemProvedorHandler>("sem-provedor", _ => { });
+        if (entra)
+        {
+            services.AddSingleton<IMetadadosEntra, MetadadosEntra>();
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = "v8desk";
+                options.DefaultChallengeScheme = "v8desk";
+                options.DefaultForbidScheme = "v8desk";
+            }).AddScheme<AuthenticationSchemeOptions, MicrosoftEntraHandler>("entra", _ => { })
+                .AddPolicyScheme("v8desk", "V8Desk", options => options.ForwardDefaultSelector = context =>
+                {
+                    var header = context.Request.Headers.Authorization.ToString();
+                    if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && header.Length <= 16400)
+                    {
+                        try
+                        {
+                            var token = new Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler().ReadJsonWebToken(header[7..].Trim());
+                            if (token.Issuer.StartsWith("https://login.microsoftonline.com/", StringComparison.Ordinal))
+                                return "entra";
+                        }
+                        catch (Exception e) when (e is ArgumentException or Microsoft.IdentityModel.Tokens.SecurityTokenException) { }
+                    }
+                    return configurada ? JwtBearerDefaults.AuthenticationScheme : "sem-provedor";
+                });
+        }
         services.AddAuthorization(options =>
         {
             var contaEmpresa = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()

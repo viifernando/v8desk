@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using v8desk.infrastructure.Persistence;
@@ -11,9 +12,11 @@ using v8desk.infrastructure.Persistence;
 namespace v8desk.infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(V8DeskDbContext))]
-    partial class V8DeskDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007124455_IntegracoesEmailMicrosoft")]
+    partial class IntegracoesEmailMicrosoft
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

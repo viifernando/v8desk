@@ -3,6 +3,15 @@ using v8desk.domain.tests;
 var suite = new RegressoesDominioTests();
 var casos = new (string Nome, Action Executar)[]
 {
+    ("Integrações: configuração, revisão e segredo", IntegracoesTests.ConfiguracaoExigeTesteAtualENaoExponheCredenciais),
+    ("Integrações: administração, replay e teste", IntegracoesTests.AdministracaoReplaysContatoETesteSaoProtegidos),
+    ("Integrações: validação e retentativas", IntegracoesTests.ValidacaoEDadosPersistidosPreservamRevisoes),
+    ("Integrações: SMTP seguro", IntegracoesTests.SmtpExigeTlsPermissaoEProtegeMensagensDeFalha),
+    ("Integrações: Graph e throttling", IntegracoesTests.GraphEnviaSemRepetirERespeitaLimites),
+    ("Integrações: falhas do Graph", IntegracoesTests.GraphFalhasPermanentesNaoVazamResposta),
+    ("Integrações: processamento e proteção de entregas", IntegracoesTests.ProcessadorConfirmaTesteETrataFalhasSemBanco),
+    ("Integrações HTTP: administração e segredo", IntegracoesHttpTests.ConfiguracaoHttpExigeAdminEMascaraSegredos),
+    ("Integrações HTTP: Entra e permissões internas", IntegracoesHttpTests.EntraValidaTokenMapeiaUsuarioEEvitaEscalada),
     ("API HTTP: autenticação, validação e idempotência", ApiHttpTests.AutenticacaoValidacaoEIdempotencia),
     ("API HTTP: limites e indisponibilidade", ApiHttpTests.LimitesEIndisponibilidade),
     ("API HTTP: prazo e cancelamento", ApiHttpTests.PrazoCancelaConsultaSemExporDetalhes),

@@ -8,6 +8,20 @@ namespace v8desk.infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AdicionarIntegracoes(this IServiceCollection services, string conexao, IEnumerable<string> hostsSmtp)
+    {
+        services.AddSingleton(_ => Npgsql.NpgsqlDataSource.Create(conexao));
+        services.AddScoped<v8desk.application.Integracoes.IIntegracoesRepository, Integracoes.IntegracoesRepository>();
+        services.AddSingleton<v8desk.application.Integracoes.IIdentidadeMicrosoftRepository, Integracoes.IdentidadeMicrosoftRepository>();
+        services.AddSingleton(new Integracoes.OpcoesEmail(new HashSet<string>(hostsSmtp, StringComparer.OrdinalIgnoreCase)));
+        services.AddSingleton<Integracoes.ISessaoSmtpFactory, Integracoes.SessaoSmtpFactory>();
+        services.AddScoped<v8desk.application.Integracoes.ITransporteEmail, Integracoes.TransporteEmail>();
+        services.AddScoped<v8desk.application.Integracoes.IntegracoesAplicacao>();
+        services.AddHttpClient("integracoes", client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(10) })
+            .RedactLoggedHeaders(_ => true);
+        return services;
+    }
     public static IServiceCollection AdicionarInfraestrutura(this IServiceCollection services, string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))

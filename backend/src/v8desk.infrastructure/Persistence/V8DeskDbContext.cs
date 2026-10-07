@@ -106,8 +106,8 @@ public sealed class V8DeskDbContext : DbContext, IUnidadeTrabalho
             }
             if (entrada.State == EntityState.Deleted && entrada.Entity is not MembroFila)
                 throw new RegraNegocioException("Este registro faz parte do histórico. Desative-o em vez de excluí-lo.");
-            if (entrada.State == EntityState.Modified && entrada.Entity is EventoChamado)
-                throw new RegraNegocioException("Os eventos do prontuário não podem ser alterados.");
+            if (entrada.State == EntityState.Modified && entrada.Entity is EventoChamado or v8desk.infrastructure.Integracoes.AuditoriaIntegracao)
+                throw new RegraNegocioException("Os registros de histórico e auditoria não podem ser alterados.");
         }
     }
 

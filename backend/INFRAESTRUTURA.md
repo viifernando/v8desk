@@ -67,7 +67,7 @@ Depois que o banco estiver disponível, aplique as migrations em desenvolvimento
 dotnet tool run dotnet-ef database update --project src/v8desk.infrastructure --startup-project src/v8desk.infrastructure
 ```
 
-Em produção use um processo de implantação controlado e uma credencial própria para migrations. O usuário padrão do Compose é apenas para desenvolvimento. Backup, restauração, TLS, monitoramento, testes de carga e agendamento da outbox pelo host são etapas posteriores.
+Em produção use um processo de implantação controlado e uma credencial própria para migrations. O usuário padrão do Compose é apenas para desenvolvimento. Backup, restauração, TLS, monitoramento e testes de carga exigem configuração operacional. O host da API já oferece processamento opcional da outbox para notificações SMTP/Graph, com fila persistida por empresa; configuração, proteção de chaves e limites estão em `INTEGRACOES.md`.
 
 ## Verificação atual
 

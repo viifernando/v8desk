@@ -266,7 +266,8 @@ public static class ApiHttpTests
             if (!Request.Headers.TryGetValue("X-Usuario-Teste", out var usuario))
                 return Task.FromResult(AuthenticateResult.NoResult());
             var principal = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim("sub", usuario.ToString()), new Claim("empresa_id", Request.Headers["X-Empresa-Teste"].ToString())], Scheme.Name));
+                new[] { new Claim("sub", usuario.ToString()), new Claim("empresa_id", Request.Headers["X-Empresa-Teste"].ToString()) }
+                    .Concat(Request.Headers["X-Admin-Teste"] == "sim" ? [new Claim(ClaimTypes.Role, "administrador_empresa")] : []), Scheme.Name));
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name)));
         }
     }

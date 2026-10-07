@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using v8desk.application.Integracoes;
+using v8desk.infrastructure.Integracoes;
 using v8desk.application.Abstractions;
 using v8desk.application.Chamados;
 using v8desk.application.Configuracao;
@@ -199,7 +201,106 @@ public static class PostgresIntegracaoTests
             var leitura = new ProntuarioConsultas(db, new AcessoRepository(db), new Identidade(usuario.Id));
             Assert.True((await leitura.MensagensAsync(chamadoAplicacao, null, 100)).Itens.Any(m => m.Tipo == TipoMensagem.NotaInterna));
         }
-        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência, outbox, Application e prontuário.");
+        await VerificarIntegracoesAsync(builder.ConnectionString, empresa.Id, usuario.Id);
+        Console.WriteLine("PASSOU: PostgreSQL real, migrations, round-trip, isolamento, concorrência, rollback, idempotência, outbox, Application, prontuário e integrações.");
+    }
+
+    private static async Task VerificarIntegracoesAsync(string conexao, Guid empresa, Guid usuario)
+    {
+        // O envio externo nunca fica dentro de uma estratégia de repetição automática do EF.
+        var options = new DbContextOptionsBuilder<V8DeskDbContext>().UseNpgsql(conexao)
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking).Options;
+        V8DeskDbContext Contexto(Guid? tenant = null) => new(options, new EmpresaTeste(tenant ?? empresa));
+        var config = new IntegracoesEmpresa(empresa);
+        config.ConfigurarEmail(new ConfiguracaoEmail
+        {
+            Provedor = ProvedorEmail.Smtp,
+            Remetente = "v8desk@example.com",
+            NomeRemetente = "V8Desk",
+            HostSmtp = "smtp.example.com",
+            PortaSmtp = 587,
+            SegurancaSmtp = SegurancaSmtp.StartTls
+        });
+        var tenantMicrosoft = Guid.NewGuid(); var api = Guid.NewGuid(); var login = Guid.NewGuid(); var objeto = Guid.NewGuid();
+        config.ConfigurarMicrosoft(new(tenantMicrosoft, api, login));
+        config.AtivarMicrosoft(true);
+        var entrega = Guid.CreateVersion7();
+        await using (var db = Contexto())
+        {
+            var repo = new IntegracoesRepository(db);
+            repo.Adicionar(config);
+            await repo.ContatoAsync(usuario, "atendente@example.com", default);
+            await repo.VincularAsync(usuario, tenantMicrosoft, objeto, true, true, default);
+            await repo.RegistrarTesteAsync(entrega, usuario, config.RevisaoEmail, default);
+            repo.Auditar(usuario, "ConfigurarEmail", DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Contexto(Guid.NewGuid()))
+        {
+            Assert.Equal(0, await db.Set<IntegracoesEmpresa>().CountAsync());
+            Assert.Equal(0, await db.Set<EntregaEmail>().CountAsync());
+            Assert.Equal(0, await db.Set<VinculoMicrosoft>().CountAsync());
+            Assert.Equal(0, await db.Set<ContatoNotificacao>().CountAsync());
+            Assert.Equal(0, await db.Set<AuditoriaIntegracao>().CountAsync());
+        }
+        await using (var source = NpgsqlDataSource.Create(conexao))
+        {
+            var identidade = new IdentidadeMicrosoftRepository(source);
+            var encontrada = await identidade.ResolverAsync(tenantMicrosoft, api, objeto, default);
+            Assert.True(encontrada is { Ativa: true, Administrador: true });
+            Assert.Equal(usuario, encontrada!.UsuarioId);
+            Assert.Equal(login, (await identidade.AcessoAsync(empresa, default))!.ClienteLoginId);
+            Assert.True(await identidade.ResolverAsync(tenantMicrosoft, Guid.NewGuid(), objeto, default) is null);
+            Assert.True(await identidade.ResolverAsync(Guid.NewGuid(), api, objeto, default) is null);
+        }
+        var transporte = new TransporteIntegracaoTeste();
+        await using (var db = Contexto())
+            Assert.Equal(1, await new ProcessadorEmail(db, new IntegracoesRepository(db), new AcessoRepository(db),
+                transporte, TimeProvider.System).ProcessarAsync());
+        await using (var db = Contexto())
+        {
+            Assert.Equal("AceitaPeloProvedor", (await db.Set<EntregaEmail>().SingleAsync(e => e.Id == entrega)).Situacao);
+            var salvo = (await new IntegracoesRepository(db).ObterAsync(true, default))!;
+            salvo.AtivarEmail(true, DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(1, transporte.Envios);
+        await using (var db = Contexto())
+            Assert.Equal(0, await new ProcessadorEmail(db, new IntegracoesRepository(db), new AcessoRepository(db),
+                transporte, TimeProvider.System).ProcessarAsync());
+        // A entrega já aceita não é enviada de novo na próxima execução do worker.
+        Assert.Equal(1, transporte.Envios);
+        var falha = Guid.CreateVersion7();
+        await using (var db = Contexto())
+        {
+            await new IntegracoesRepository(db).RegistrarTesteAsync(falha, usuario, config.RevisaoEmail, default);
+            await db.SaveChangesAsync();
+        }
+        transporte.Falhar = true;
+        await using (var db = Contexto())
+            Assert.Equal(0, await new ProcessadorEmail(db, new IntegracoesRepository(db), new AcessoRepository(db),
+                transporte, TimeProvider.System).ProcessarAsync());
+        await using (var db = Contexto())
+        {
+            var pendente = await db.Set<EntregaEmail>().SingleAsync(e => e.Id == falha);
+            Assert.Equal("Pendente", pendente.Situacao);
+            Assert.Equal(1, pendente.Tentativas);
+            Assert.Equal("limite_provedor", pendente.Codigo);
+            Assert.True(pendente.ProximaTentativaEm > DateTimeOffset.UtcNow.AddSeconds(40));
+        }
+    }
+
+    private sealed class TransporteIntegracaoTeste : ITransporteEmail
+    {
+        public int Envios { get; private set; }
+        public bool Falhar { get; set; }
+        public Task<DiagnosticoIntegracao> DiagnosticarAsync(ConfiguracaoEmail config, Guid empresa, CancellationToken ct) =>
+            Task.FromResult(new DiagnosticoIntegracao(true, "conectado", "Conectado."));
+        public Task EnviarAsync(ConfiguracaoEmail config, Guid empresa, EmailSaida email, CancellationToken ct)
+        {
+            if (Falhar) throw new FalhaIntegracaoException("limite_provedor", "Espere antes de tentar novamente.", true, TimeSpan.FromSeconds(55));
+            Envios++; return Task.CompletedTask;
+        }
     }
 
     private static async Task ExigirFalhaAsync<T>(Func<Task> executar) where T : Exception

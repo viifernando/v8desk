@@ -199,6 +199,33 @@ internal static class Mapeamentos
         comando.HasIndex("EmpresaId", "UsuarioId", "Chave").IsUnique();
         comando.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
 
+        var integracoes = Base<IntegracoesEmpresa>(m, "integracoes_empresa");
+        integracoes.HasIndex(x => x.EmpresaId).IsUnique();
+        integracoes.HasIndex(x => new { x.TenantMicrosoftId, x.ApiMicrosoftId }).IsUnique();
+        JsonPersistencia.Mapear(integracoes.Property(x => x.Email));
+        JsonPersistencia.Mapear(integracoes.Property(x => x.Microsoft));
+        integracoes.Property(x => x.UltimoDiagnostico).HasMaxLength(100);
+        var vinculoMicrosoft = Base<v8desk.infrastructure.Integracoes.VinculoMicrosoft>(m, "vinculos_microsoft");
+        vinculoMicrosoft.HasIndex(x => new { x.EmpresaId, x.TenantId, x.ObjetoId }).IsUnique();
+        vinculoMicrosoft.HasIndex(x => new { x.EmpresaId, x.UsuarioId, x.TenantId }).IsUnique();
+        vinculoMicrosoft.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
+        var contato = Base<v8desk.infrastructure.Integracoes.ContatoNotificacao>(m, "contatos_notificacao");
+        contato.Property(x => x.Email).HasMaxLength(254);
+        contato.HasIndex(x => new { x.EmpresaId, x.UsuarioId }).IsUnique();
+        contato.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
+        var auditoria = Base<v8desk.infrastructure.Integracoes.AuditoriaIntegracao>(m, "auditoria_integracoes");
+        auditoria.Property(x => x.Acao).HasMaxLength(100);
+        auditoria.HasIndex(x => new { x.EmpresaId, x.OcorridaEm });
+        auditoria.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
+        var entrega = Base<v8desk.infrastructure.Integracoes.EntregaEmail>(m, "entregas_email");
+        entrega.Property(x => x.Codigo).HasMaxLength(100);
+        entrega.Property(x => x.Situacao).HasMaxLength(40);
+        entrega.HasIndex(x => new { x.EmpresaId, x.EventoId, x.UsuarioId }).IsUnique();
+        entrega.HasIndex(x => new { x.EmpresaId, x.ProximaTentativaEm }).HasFilter("situacao = 'Pendente'");
+        entrega.HasIndex(x => new { x.EmpresaId, x.CriadaEm, x.Id });
+        entrega.HasOne<Usuario>().WithMany().HasForeignKey("EmpresaId", "UsuarioId").OnDelete(DeleteBehavior.Restrict);
+        entrega.HasOne<Chamado>().WithMany().HasForeignKey("EmpresaId", "ChamadoId").OnDelete(DeleteBehavior.Restrict);
+
         evento.ToTable(t => t.HasCheckConstraint("ck_evento_sequencia", "sequencia > 0"));
         ciclo.ToTable(t => t.HasCheckConstraint("ck_ciclo_numero", "numero > 0"));
         periodo.ToTable(t => t.HasCheckConstraint("ck_periodo_datas", "saida IS NULL OR saida >= entrada"));

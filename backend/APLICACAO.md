@@ -73,4 +73,6 @@ Execute a suíte a partir da raiz do repositório:
 dotnet run --project backend/tests/v8desk.domain.tests
 ```
 
-A API agora expõe esses casos de uso e valida tokens JWT de um provedor externo configurado; emissão de tokens e provisionamento de identidade permanecem fora desta etapa. A integração PostgreSQL permanece opt-in, sem iniciar Docker. Armazenamento e associação de arquivos dependem do serviço de anexos ainda pendente; a Application não aceita chaves arbitrárias de armazenamento enviadas pelo cliente. Transporte e agendamento de notificações permanecem responsabilidade do host.
+A API expõe esses casos de uso e valida tokens JWT de um provedor externo configurado ou Microsoft Entra com associações internas explícitas. A Application também coordena configuração de integrações, contatos, associações Microsoft, testes e reagendamento de entregas, com autorização administrativa e idempotência. O host fornece proteção de credenciais, transporte SMTP/Graph e processamento opcional da fila; consultar `INTEGRACOES.md`.
+
+Emissão de tokens e provisionamento inicial permanecem fora desta etapa. A integração PostgreSQL permanece opt-in, sem iniciar Docker. Armazenamento e associação de arquivos dependem do serviço de anexos ainda pendente; a Application não aceita chaves arbitrárias de armazenamento enviadas pelo cliente.
