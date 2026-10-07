@@ -11,6 +11,12 @@ namespace v8desk.api.Controllers;
 public sealed class AcessoMicrosoftController(IIdentidadeMicrosoftRepository identidades) : ControllerBase
 {
     [HttpGet("{empresaId:guid}")]
+    [ProducesResponseType<AcessoMicrosoft>(200)]
+    [ProducesResponseType<ProblemDetails>(400)]
+    [ProducesResponseType<ProblemDetails>(404)]
+    [ProducesResponseType<ProblemDetails>(429)]
+    [ProducesResponseType<ProblemDetails>(500)]
+    [ProducesResponseType<ProblemDetails>(503)]
     public async Task<ActionResult<AcessoMicrosoft>> Configuracao([IdValido] Guid empresaId, CancellationToken ct)
     {
         var acesso = await identidades.AcessoAsync(empresaId, ct);

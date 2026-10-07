@@ -17,8 +17,9 @@ public sealed class SetoresController(ConfiguracaoSetorAplicacao aplicacao) : Ap
         Ok(await aplicacao.ExecutarAsync(new DesativarSetor(setorId), Chave(), ct));
 
     [HttpPost("filas")]
+    [ProducesResponseType<ResultadoConfiguracao>(201)]
     public async Task<ActionResult<ResultadoConfiguracao>> CriarFila([IdValido] Guid setorId, NomeEntrada e, CancellationToken ct) =>
-        Ok(await aplicacao.ExecutarAsync(new CriarFila(setorId, e.Nome), Chave(), ct));
+        StatusCode(201, await aplicacao.ExecutarAsync(new CriarFila(setorId, e.Nome), Chave(), ct));
 
     [HttpPost("filas/{filaId:guid}/nome")]
     public async Task<ActionResult<ResultadoConfiguracao>> RenomearFila([IdValido] Guid setorId, [IdValido] Guid filaId, NomeEntrada e, CancellationToken ct) =>
@@ -29,8 +30,9 @@ public sealed class SetoresController(ConfiguracaoSetorAplicacao aplicacao) : Ap
         Ok(await aplicacao.ExecutarAsync(new DesativarFila(setorId, filaId), Chave(), ct));
 
     [HttpPost("categorias")]
+    [ProducesResponseType<ResultadoConfiguracao>(201)]
     public async Task<ActionResult<ResultadoConfiguracao>> CriarCategoria([IdValido] Guid setorId, NovaCategoriaEntrada e, CancellationToken ct) =>
-        Ok(await aplicacao.ExecutarAsync(new CriarCategoria(setorId, e.Nome, e.PaiId), Chave(), ct));
+        StatusCode(201, await aplicacao.ExecutarAsync(new CriarCategoria(setorId, e.Nome, e.PaiId), Chave(), ct));
 
     [HttpPost("categorias/{categoriaId:guid}/nome")]
     public async Task<ActionResult<ResultadoConfiguracao>> RenomearCategoria([IdValido] Guid setorId, [IdValido] Guid categoriaId, NomeEntrada e, CancellationToken ct) =>
@@ -101,8 +103,9 @@ public sealed class SetoresController(ConfiguracaoSetorAplicacao aplicacao) : Ap
         Ok(await aplicacao.ExecutarAsync(new RemoverMembroFila(setorId, filaId, usuarioId), Chave(), ct));
 
     [HttpPost("vinculos")]
+    [ProducesResponseType<ResultadoConfiguracao>(201)]
     public async Task<ActionResult<ResultadoConfiguracao>> CriarVinculoSetor([IdValido] Guid setorId, VinculoEntrada e, CancellationToken ct) =>
-        Ok(await aplicacao.ExecutarAsync(new CriarVinculoSetor(setorId, e.UsuarioId, e.Papel), Chave(), ct));
+        StatusCode(201, await aplicacao.ExecutarAsync(new CriarVinculoSetor(setorId, e.UsuarioId, e.Papel), Chave(), ct));
 
     [HttpPost("vinculos/{vinculoId:guid}/papeis/conceder")]
     public async Task<ActionResult<ResultadoConfiguracao>> ConcederPapelSetor([IdValido] Guid setorId, [IdValido] Guid vinculoId, PapelEntrada e, CancellationToken ct) =>

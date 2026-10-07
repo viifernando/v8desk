@@ -14,12 +14,14 @@ public sealed class EmpresaController(ConfiguracaoEmpresaAplicacao aplicacao) : 
         Ok(await aplicacao.ExecutarAsync(new RenomearEmpresa(e.Nome), Chave(), ct));
 
     [HttpPost("setores")]
+    [ProducesResponseType<ResultadoEmpresa>(201)]
     public async Task<ActionResult<ResultadoEmpresa>> CriarSetor(NomeEntrada e, CancellationToken ct) =>
-        Ok(await aplicacao.ExecutarAsync(new CriarSetor(e.Nome), Chave(), ct));
+        StatusCode(201, await aplicacao.ExecutarAsync(new CriarSetor(e.Nome), Chave(), ct));
 
     [HttpPost("usuarios")]
+    [ProducesResponseType<ResultadoEmpresa>(201)]
     public async Task<ActionResult<ResultadoEmpresa>> CriarUsuario(NomeEntrada e, CancellationToken ct) =>
-        Ok(await aplicacao.ExecutarAsync(new CriarUsuario(e.Nome), Chave(), ct));
+        StatusCode(201, await aplicacao.ExecutarAsync(new CriarUsuario(e.Nome), Chave(), ct));
 
     [HttpPost("usuarios/{usuarioId:guid}/nome")]
     public async Task<ActionResult<ResultadoEmpresa>> RenomearUsuario([IdValido] Guid usuarioId, NomeEntrada e, CancellationToken ct) =>

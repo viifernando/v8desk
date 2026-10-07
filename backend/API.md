@@ -75,6 +75,9 @@ Erros retornam `application/problem+json`, com mensagem em português, `code`, `
 
 | Status | Tratamento esperado |
 | --- | --- |
+| 200 | Consulta ou alteração concluída, com resultado JSON |
+| 201 | Chamado, setor, usuário, fila, categoria ou vínculo criado, com ID no corpo |
+| 202 | Teste de e-mail agendado; consultar a fila de entregas para acompanhar |
 | 400 | Corrigir campos, formato ou chave de operação |
 | 401 | Obter sessão válida; inclui WWW-Authenticate: Bearer |
 | 403 | Informar falta de permissão; recursos inexistentes e inacessíveis não são distinguidos |
@@ -84,6 +87,8 @@ Erros retornam `application/problem+json`, com mensagem em português, `code`, `
 | 429 | Respeitar Retry-After |
 | 503 | Serviço ou dependência indisponível; respeitar Retry-After quando presente |
 | 500 | Mensagem genérica; informar traceId ao suporte |
+
+Os endpoints de criação preservam a resposta 201 e o mesmo corpo no replay com a mesma `Idempotency-Key`. A abertura de chamado inclui `Location` para a consulta do chamado. As demais criações ainda não têm GET de detalhe próprio e retornam 201 com o identificador, sem `Location`. Operações sobre recursos existentes continuam retornando 200 com o resultado. O OpenAPI declara explicitamente 201/202 onde aplicável e as respostas de erro compartilhadas; a descoberta pública Microsoft também declara 404 quando indisponível.
 
 ## Autenticação e empresa
 

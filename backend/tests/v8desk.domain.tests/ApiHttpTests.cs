@@ -29,6 +29,56 @@ namespace v8desk.domain.tests;
 
 public static class ApiHttpTests
 {
+    public static void CriacoesRetornam201EOpenApiDocumentaRespostas() => VerificarCriacoesAsync().GetAwaiter().GetResult();
+
+    private static async Task VerificarCriacoesAsync()
+    {
+        using var host = new HostApi();
+        host.Cenario.Autor = host.Cenario.Atendente;
+        host.Cenario.VinculoAtendente.ConcederPapel(v8desk.domain.Enums.PapelSetor.Gestor);
+        using var client = host.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+        Entrar(client, host.Cenario);
+        client.DefaultRequestHeaders.Add("X-Admin-Teste", "sim");
+        var setor = host.Cenario.Atendimento.Id;
+        var rotas = new (string Rota, object Corpo)[]
+        {
+            ("/api/v1/empresa/setores", new { nome = "Financeiro HTTP" }),
+            ("/api/v1/empresa/usuarios", new { nome = "Usuário HTTP" }),
+            ($"/api/v1/setores/{setor}/filas", new { nome = "Fila HTTP" }),
+            ($"/api/v1/setores/{setor}/categorias", new { nome = "Categoria HTTP" }),
+            ($"/api/v1/setores/{setor}/vinculos", new { usuarioId = host.Cenario.Solicitante.Id, papel = "Atendente" })
+        };
+        for (var i = 0; i < rotas.Length; i++)
+        {
+            client.DefaultRequestHeaders.Remove("Idempotency-Key");
+            client.DefaultRequestHeaders.Add("Idempotency-Key", "criacao-http-" + i);
+            using var criada = await client.PostAsJsonAsync(rotas[i].Rota, rotas[i].Corpo, Json);
+            Assert.Equal(HttpStatusCode.Created, criada.StatusCode);
+            var corpo = await criada.Content.ReadAsStringAsync();
+            using var resultado = JsonDocument.Parse(corpo);
+            Assert.True(resultado.RootElement.GetProperty("registroId").GetGuid() != Guid.Empty);
+            using var replay = await client.PostAsJsonAsync(rotas[i].Rota, rotas[i].Corpo, Json);
+            Assert.Equal(HttpStatusCode.Created, replay.StatusCode);
+            Assert.Equal(corpo, await replay.Content.ReadAsStringAsync());
+        }
+        using var documento = await client.GetAsync("/openapi/v1.json");
+        Assert.Equal(HttpStatusCode.OK, documento.StatusCode);
+        using var openapi = JsonDocument.Parse(await documento.Content.ReadAsStringAsync());
+        var paths = openapi.RootElement.GetProperty("paths");
+        foreach (var rota in new[] { "/api/v1/empresa/setores", "/api/v1/empresa/usuarios",
+            "/api/v1/setores/{setorId}/filas", "/api/v1/setores/{setorId}/categorias", "/api/v1/setores/{setorId}/vinculos" })
+        {
+            var respostas = paths.GetProperty(rota).GetProperty("post").GetProperty("responses");
+            Assert.True(respostas.TryGetProperty("201", out _));
+            Assert.False(respostas.TryGetProperty("200", out _));
+            foreach (var status in new[] { "400", "401", "403", "409", "413", "415", "429", "500", "503" })
+                Assert.True(respostas.TryGetProperty(status, out _));
+        }
+        var teste = paths.GetProperty("/api/v1/integracoes/email/testar").GetProperty("post").GetProperty("responses");
+        Assert.True(teste.TryGetProperty("202", out _)); Assert.False(teste.TryGetProperty("200", out _));
+        Assert.True(paths.GetProperty("/api/v1/acesso/microsoft/{empresaId}").GetProperty("get")
+            .GetProperty("responses").TryGetProperty("404", out _));
+    }
     public static void AutenticacaoValidacaoEIdempotencia() => ExecutarFluxoAsync().GetAwaiter().GetResult();
     public static void LimitesEIndisponibilidade() => ExecutarLimitesAsync().GetAwaiter().GetResult();
     public static void PrazoCancelaConsultaSemExporDetalhes() => ExecutarPrazoAsync().GetAwaiter().GetResult();

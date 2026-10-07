@@ -13,7 +13,10 @@ namespace v8desk.api.Controllers;
 [ProducesResponseType<ProblemDetails>(401)]
 [ProducesResponseType<ProblemDetails>(403)]
 [ProducesResponseType<ProblemDetails>(409)]
+[ProducesResponseType<ProblemDetails>(413)]
+[ProducesResponseType<ProblemDetails>(415)]
 [ProducesResponseType<ProblemDetails>(429)]
+[ProducesResponseType<ProblemDetails>(500)]
 [ProducesResponseType<ProblemDetails>(503)]
 public abstract class ApiController : ControllerBase
 {

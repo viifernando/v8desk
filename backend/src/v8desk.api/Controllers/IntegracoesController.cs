@@ -23,6 +23,7 @@ public sealed class IntegracoesController(IntegracoesAplicacao aplicacao, IConfi
     public async Task<ActionResult<DiagnosticoIntegracao>> Diagnosticar(CancellationToken ct) =>
         Ok(await aplicacao.DiagnosticarAsync(ct));
     [HttpPost("email/testar")]
+    [ProducesResponseType<ResultadoIntegracao>(202)]
     public async Task<ActionResult<ResultadoIntegracao>> Testar(CancellationToken ct)
     {
         var resultado = await aplicacao.ExecutarAsync(new TestarEmail(), Chave(), ct);

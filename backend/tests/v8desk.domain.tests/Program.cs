@@ -13,6 +13,7 @@ var casos = new (string Nome, Action Executar)[]
     ("Integrações HTTP: administração e segredo", IntegracoesHttpTests.ConfiguracaoHttpExigeAdminEMascaraSegredos),
     ("Integrações HTTP: Entra e permissões internas", IntegracoesHttpTests.EntraValidaTokenMapeiaUsuarioEEvitaEscalada),
     ("API HTTP: autenticação, validação e idempotência", ApiHttpTests.AutenticacaoValidacaoEIdempotencia),
+    ("API HTTP: criações e contrato OpenAPI", ApiHttpTests.CriacoesRetornam201EOpenApiDocumentaRespostas),
     ("API HTTP: limites e indisponibilidade", ApiHttpTests.LimitesEIndisponibilidade),
     ("API HTTP: prazo e cancelamento", ApiHttpTests.PrazoCancelaConsultaSemExporDetalhes),
     ("API HTTP: validação real de JWT", ApiHttpTests.JwtValidaAssinaturaEmissorPublicoPrazoEEmpresa),
